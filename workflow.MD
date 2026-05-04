@@ -118,29 +118,29 @@ Além do registro qualitativo do uso de IA, este documento captura dados de **ec
 #### Custo real de IA (total do projeto)
 | Fase | Tokens entrada | Tokens saída | Custo IA (USD) | Custo IA (R$) |
 |------|---------------|-------------|---------------|--------------|
-| Exposição | | | | |
-| Composição | | | | |
-| Ensaio | | | | |
-| Ressonância | | | | |
-| **Total** | | | | |
+| Exposição | ~19.000 | ~9.500 | ~$0.0097 | ~R$ 0,05 |
+| Composição | — | — | — | — |
+| Ensaio | — | — | — | — |
+| Ressonância | — | — | — | — |
+| **Total (estimado ao final)** | | | | |
 
-> Conversão USD → BRL: usar cotação da data de fechamento do projeto.
+> Conversão USD → BRL: usando taxa aproximada de 5 BRL/USD (vigente em 2026-05-04)
 
 #### Custo contrafactual humano (total do projeto)
 | Fase | Horas totais estimadas | Custo humano estimado (R$) |
 |------|----------------------|--------------------------|
-| Exposição | | |
-| Composição | | |
-| Ensaio | | |
-| Ressonância | | |
-| **Total** | | |
+| Exposição | 4,0h | R$ 160,00 |
+| Composição | — | — |
+| Ensaio | — | — |
+| Ressonância | — | — |
+| **Total (estimado ao final)** | | |
 
-#### Análise comparativa
-- **Custo total com IA (R$):** [custo IA convertido + horas de supervisão humana]
-- **Custo total estimado sem IA (R$):** [custo contrafactual]
-- **Razão de economicidade:** [custo sem IA / custo com IA]
-- **Saving estimado (R$):** [diferença absoluta]
-- **Saving estimado (%):** [diferença percentual]
+#### Análise comparativa (Fase Exposição)
+- **Custo total com IA (R$):** R$ 30,05 (tokens: R$ 0,05 + tempo humano: 0,75h × R$ 40/h = R$ 30,00)
+- **Custo total estimado sem IA (R$):** R$ 160,00
+- **Razão de economicidade:** 5,33x (sem IA é 5,33× mais caro)
+- **Saving estimado (R$):** R$ 129,95
+- **Saving estimado (%):** 81,25%
 
 > **Atenção às limitações desta análise:**
 > (1) O contrafactual é uma estimativa subjetiva -- há viés de retrospecto.
