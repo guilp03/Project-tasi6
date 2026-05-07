@@ -14,7 +14,7 @@
 
 **D3 — Documentação Automatizada**
 
-Escolhemos o domínio de automação de documentação porque identificamos um gargalo crítico em projetos de software: a manutenção contínua de documentação durante ciclos de desenvolvimento ágil, especialmente para profissionais de PMO que não possuem expertise técnica profunda.
+Escolhemos o domínio de automação de documentação porque identificamos um gargalo crítico em projetos de software: a manutenção contínua de documentação durante ciclos de desenvolvimento ágil, especialmente para profissionais de PMO que não possuem expertise técnica profunda. Nota-se que a adoção de ferramentas automatizadas em demasia se mostra custosa para tarefas tangenciais do processo, caso que é contemplado pela D3.
 
 ---
 
@@ -52,6 +52,7 @@ A IA funcionará como um **auditor automático de documentação** que:
 
 O papel central é **automação com transparência**: não é um substituto para revisão humana, mas um filtro inteligente que reduz 80% do tempo de análise manual.
 
+
 ---
 
 ## 4. Tipo de aplicação imaginada
@@ -77,7 +78,7 @@ Developer abre PR → GitHub trigger → CLI/Bot analisa → Comenta resultado n
 **Riscos técnicos:**
 - 📊 **Taxa de erro da LLM** — Se acurácia cair abaixo de 80%, ferramenta vira ruído. Precisamos validar modelos (Claude, GPT-4, etc.)
 - 💰 **Custo de tokens** — Se custo/PR exceder R$ 0,50, não compensa economicamente
-- ⚡ **Performance** — Se análise levar >60s, PMO ignora resultado; alvo é <30s
+- ⚡ **Performance** — A análise não pode demorar muito, pois esse caso indicaria que o PM tenderia a não olhar o resultado
 - 📝 **Qualidade das correções** — Se a IA gerar sugestões ruins, PMO precisará refazer tudo
 - 🔍 **Detecção de falsos positivos** — Muitos alertas falsos = ferramenta ignorada
 
@@ -85,6 +86,7 @@ Developer abre PR → GitHub trigger → CLI/Bot analisa → Comenta resultado n
 - Qual documentação é relevante? (README? Swagger? Wiki? Código comentado?)
 - Como lidar com multi-linguagem (repos em PT-BR, EN, etc.)?
 - Deve sugerir correções ou apenas alertar?
+- Como decidir a verbosidade, quanto da tarefa automatizar?
 
 **Plano de validação:**
 - MVP focado em detecção de gaps, não em sugestões automáticas
@@ -118,12 +120,3 @@ Developer abre PR → GitHub trigger → CLI/Bot analisa → Comenta resultado n
    → Case study prático de implementação em projeto real
 
 ---
-
-## 📌 Próximos Passos
-
-- [ ] Validar modelos de LLM (Claude 3.5, GPT-4, Llama)
-- [ ] Definir tipos de documentação relevante (scope inicial)
-- [ ] Criar protótipo de MVP (detecção de gaps)
-- [ ] Validar em repositório real (5-10 PRs de teste)
-- [ ] Refinar métricas de sucesso (acurácia, custo, tempo)
-- [ ] Definir arquitetura final e tech stack
