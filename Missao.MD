@@ -1,90 +1,120 @@
-# Missão e Valores — Documentação Automatizada (D3)
-
-**Versão:** 0.1  
-**Data:** 2026-05-04
+# Missão e Valores — Auditoria Automatizada de Documentação com IA
 
 ---
 
-## 🎯 Nossa Missão
+# 🎯 Nossa Missão
 
-**Reduzir o atrito na auditoria de documentação através de IA, permitindo que equipes de PMO gerenciem releases em alta velocidade, com custo mínimo e sem comprometer a segurança essencial.**
-
----
-
-## 💡 Nossos Valores
-
-### 1️⃣ **Pragmatismo sobre Perfeição**
-- ✅ Uma solução que funciona 80% das vezes agora é melhor que perfeita em 6 meses
-- ✅ Erros aceitáveis se forem raros e detectáveis
-- ✅ Priorizamos **velocidade** > excelência absoluta
-
-### 2️⃣ **Máxima Eficiência pelo Menor Custo**
-- ✅ Cada real economizado importa (para startups e PMEs)
-- ✅ Preferimos solução de R$ 0,03 que economiza R$ 100 a solução de R$ 100 que economiza R$ 200
-- ✅ Escalabilidade de custo: mesmo 500 PRs/mês custam centavos
-
-### 3️⃣ **Respeito ao Contexto Real**
-- ✅ Entendemos que PRs são **volume alto** em projetos reais
-- ✅ PMOs precisam fazer triage em **segundos**, não minutos
-- ✅ Devs querem feedback rápido, não esperar por humanos
-
-### 4️⃣ **Segurança Não É Negociável**
-- ✅ Mudanças de segurança/compliance **nunca** passam despercebidas
-- ✅ Mesmo que o resto esteja documentado parcialmente, gaps de segurança disparam alerta
-- ✅ False positives são aceitáveis; false negatives não são
-
-### 5️⃣ **Transparência sobre Limitações**
-- ✅ Documentamos onde a IA falha
-- ✅ Não prometemos 100% de acurácia
-- ✅ Usuário sabe os riscos e decide confiar
+Reduzir o atrito no processo de auditoria de documentação utilizando Inteligência Artificial, permitindo que equipes realizem releases com mais velocidade, menor custo operacional e maior segurança.
 
 ---
 
-## 🚀 Princípios de Design
+# 💡 Nossos Valores
 
-### Trade-off Aceitado: Velocidade × Precisão
+## 1. Pragmatismo Acima da Perfeição
 
-```
-SEM IA (hoje)
-├─ Precisão: ⭐⭐⭐⭐⭐ (100%)
-├─ Velocidade: ⭐ (15-20 min/PR)
-├─ Escalabilidade: ⭐ (máx 5 PRs/dia por PMO)
-└─ Custo: ⭐ (muito alto em horas humanas)
+Priorizamos soluções funcionais, rápidas e úteis no contexto real de desenvolvimento de software.
 
-COM NOSSA SOLUÇÃO (nosso alvo)
-├─ Precisão: ⭐⭐⭐⭐ (90-95%, com 5-10% falsos positivos)
-├─ Velocidade: ⭐⭐⭐⭐⭐ (30 segundos/PR)
-├─ Escalabilidade: ⭐⭐⭐⭐⭐ (500+ PRs/dia)
-└─ Custo: ⭐⭐⭐⭐⭐ (centavos/PR)
-```
+- Entregas rápidas possuem mais valor que soluções perfeitas demoradas;
+- Pequenos erros são aceitáveis quando detectáveis e controlados;
+- Velocidade operacional é um diferencial estratégico.
 
 ---
 
-## 📏 Métricas de Sucesso
+## 2. Eficiência com Baixo Custo
 
-| Métrica | Alvo | Aceitável |
-|---------|------|-----------|
-| **Tempo de análise por PR** | <30s | <60s |
-| **Acurácia de detecção** | >90% | >80% |
-| **Custo por PR** | <R$ 0,10 | <R$ 0,50 |
-| **Taxa de false positives** | <10% | <15% |
-| **Taxa de false negatives (segurança)** | 0% | 0% |
-| **Economia vs manual** | >80% do tempo | >60% do tempo |
+O sistema foi pensado para possuir baixo custo operacional e alta escalabilidade.
+
+- Cada otimização de custo importa;
+- A solução deve funcionar bem mesmo em ambientes com grande volume de PRs;
+- O objetivo é maximizar ganho operacional utilizando o mínimo de recursos possível.
 
 ---
 
-## ⚖️ O que NÃO Somos
+## 3. Foco no Cenário Real das Equipes
 
-- ❌ Uma ferramenta de revisão de código de alta precisão
-- ❌ Um substituto para code review humano
-- ❌ Uma solução para garantir excelência técnica
-- ❌ Um checker 100% confiável
+A aplicação foi desenhada considerando o cotidiano real de times de desenvolvimento.
+
+- PMOs precisam analisar PRs rapidamente;
+- Desenvolvedores precisam de feedback imediato;
+- Revisões manuais geram gargalos e interrupções constantes.
 
 ---
 
-## ✅ O que SOMOS
+## 4. Segurança é Prioridade
 
-- ✅ Um filtro inteligente de documentação
-- ✅ Um acelerador para PMOs
-- ✅ Um aliado pragmático para times em alta velocidade
-- ✅ Uma solução de **bom suficiente** a custo mínimo
+Mudanças relacionadas à segurança e compliance devem sempre ser sinalizadas.
+
+- Alterações críticas não podem passar despercebidas;
+- Falsos positivos são aceitáveis;
+- Falsos negativos relacionados à segurança não são aceitáveis.
+
+---
+
+## 5. Transparência nas Limitações
+
+A solução não promete precisão absoluta.
+
+- A IA pode falhar em alguns cenários;
+- Limitações devem ser documentadas;
+- O usuário continua tendo controle da decisão final.
+
+---
+
+# 🚀 Objetivo da Solução
+
+Automatizar a análise de Pull Requests para:
+
+- Detectar ausência de documentação;
+- Identificar inconsistências entre código e documentação;
+- Alertar sobre alterações críticas;
+- Reduzir tempo de revisão;
+- Melhorar a produtividade de PMOs e desenvolvedores.
+
+---
+
+# 📊 Comparativo: Processo Manual vs Solução com IA
+
+| Critério | Processo Manual | Solução com IA |
+|---|---|---|
+| Tempo de análise | 15 a 20 minutos por PR | Aproximadamente 30 segundos |
+| Escalabilidade | Baixa | Alta |
+| Dependência humana | Alta | Reduzida |
+| Custo operacional | Elevado | Baixo |
+| Velocidade de aprovação | Lenta | Rápida |
+| Detecção de gaps | Sujeita a erro humano | Automatizada |
+
+---
+
+# 📏 Métricas de Sucesso
+
+| Métrica | Meta |
+|---|---|
+| Tempo médio por análise | Menor que 30 segundos |
+| Precisão da detecção | Acima de 90% |
+| Custo por PR | Menor que R$ 0,10 |
+| Redução de tempo manual | Acima de 80% |
+| Falsos negativos em segurança | 0% |
+
+---
+
+# ✅ O que a Solução É
+
+- Um sistema inteligente de auditoria documental;
+- Um acelerador de releases;
+- Uma ferramenta de apoio para PMOs e desenvolvedores;
+- Uma solução escalável e de baixo custo.
+
+---
+
+# ❌ O que a Solução Não É
+
+- Um substituto para revisão humana;
+- Uma ferramenta de code review completo;
+- Uma solução com precisão absoluta;
+- Um sistema responsável pela qualidade total do código.
+
+---
+
+# 📌 Conclusão
+
+A solução propõe um processo de auditoria de documentação mais rápido, escalável e eficiente, utilizando Inteligência Artificial como apoio estratégico para reduzir gargalos operacionais e aumentar a produtividade das equipes de desenvolvimento e gestão.
