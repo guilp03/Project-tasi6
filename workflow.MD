@@ -92,7 +92,66 @@ Além do registro qualitativo do uso de IA, este documento captura dados de **ec
 ---
 
 ## Fase: Composição (Aulas 21-24)
-[Mesma estrutura, incluindo as três camadas de economicidade]
+
+### Onde a IA ajudou
+- **C4 Model (Nível 1, 2, 3):** Claude estruturou diagrama de contexto, contêineres e componentes rapidamente. Iterações rápidas de refinamento.
+- **Seleção de Stack:** Claude analisou trade-offs Node.js vs Python vs Go considerando performance em GitHub Actions e startup time crítico.
+- **Seleção de LLM Provider:** Claude fez análise comparativa Groq vs Claude vs GPT-4 vs Deepseek, considerando os 5 valores de Missão (pragmatismo, custo mínimo, latência, segurança, transparência).
+- **Decisões Arquiteturais (ADRs):** Claude estruturou 5 ADRs com contexto, decisão, alternativas e consequências, alinhados com valores do projeto.
+- **Revisão Crítica:** Claude fez análise honesta de cada decisão vs Missão + PRE_PROPOSTA, identificando que MongoDB poderia ser removido do MVP (depois revertido por decisão do time).
+
+### Onde a IA não ajudou (ou atrapalhou)
+- **Over-documentation:** Inicialmente documentamos Nível 3 com muito detalhe (subcomponentes 3.1, 3.2, 3.3, etc) — foi simplificado depois para Design Emergente durante implementação.
+- **MongoDB scope creep:** Houve debate se MongoDB era necessário para MVP — recomendação inicial era removê-lo, mas time decidiu manter para possibilitar feedback learning em v2.
+
+### Prompts notáveis desta fase
+- PROMPT-C1: "Faça um C4 Model completo (3 níveis) para sistema monolítico Python CLI acionado por GitHub Actions"
+- PROMPT-C2: "Compare Node.js vs Python para CLI em GitHub Actions considerando startup time < 30s análise total"
+- PROMPT-C3: "Análise comparativa Groq vs Claude vs GPT-4 vs Deepseek para análise de documentação, considerando estes 5 valores..."
+- PROMPT-C4: "Revise cada decisão arquitetural contra Missão.MD e PRE_PROPOSTA.md — qual alinha? qual não alinha?"
+
+### Decisões tomadas sem IA
+- **MongoDB sim/não:** Debate inicial (remover para MVP vs manter) — time decidiu manter para v1 com foco em feedback learning.
+- **C4 Level 3 scope:** Decisão de simplificar Nível 3 para Design Emergente (não documentar cada subcomponente antes de implementar).
+
+### Registro de economicidade desta fase
+
+#### Camada 1 -- Consumo de IA
+| Atividade | Ferramenta/Modelo | Tokens entrada | Tokens saída | Custo estimado (USD) |
+|-----------|------------------|---------------|-------------|----------------------|
+| C4 Model (3 níveis) | Claude Haiku 4.5 | ~28.000 | ~12.000 | ~$0.0096 |
+| Stack tecnológico (análise) | Claude Haiku 4.5 | ~8.000 | ~4.000 | ~$0.0032 |
+| LLM Provider comparison | Claude Haiku 4.5 | ~15.000 | ~8.000 | ~$0.0072 |
+| ADRs (5 decisões arquiteturais) | Claude Haiku 4.5 | ~12.000 | ~6.000 | ~$0.0048 |
+| Revisão crítica vs Missão/Proposta | Claude Haiku 4.5 | ~18.000 | ~9.000 | ~$0.0108 |
+| **Total da fase** | | **~81.000** | **~39.000** | **~$0.0356** |
+
+#### Camada 2 -- Esforço humano real (auto-declarado)
+| Atividade | Membro (perfil) | Tempo com IA (h) | Tempo sem IA (h) | Observações |
+|-----------|----------------|-----------------|-----------------|-------------|
+| C4 Model (3 níveis) | Guilherme (pleno) | 1,5h | — | Claude fez 80% do trabalho (estrutura, diagramas). Refinamento e validação manuais. |
+| Stack tecnológico | Guilherme (pleno) | 0,75h | — | Claude análise 90%, decisão final + trade-off avaliação manual. |
+| LLM Provider (Groq vs Claude vs GPT vs Deepseek) | Guilherme (pleno) | 1,0h | — | Claude comparação, depois reconsideração vs Missão.MD (manual). |
+| ADRs (5 decisões) | Guilherme (pleno) | 1,5h | — | Claude gerou estrutura, time refinava contexto/alternativas/consequências. |
+| Revisão crítica (Missão + Proposta) | Guilherme (pleno) | 1,25h | — | Claude análise inicial, depois discussão de MongoDB sim/não. |
+| **Total** | | **6,0h** | | |
+
+#### Camada 3 -- Estimativa contrafactual
+| Atividade | Perfil | Tempo estimado sem IA (h) | Salário médio/h (R$) | Custo humano estimado (R$) |
+|-----------|--------|--------------------------|---------------------|---------------------------|
+| C4 Model (pesquisa + sketch + validação) | Pleno | 4,0h | R$ 75 | R$ 300,00 |
+| Stack analysis (pesquisa trade-offs + testes) | Pleno | 2,5h | R$ 75 | R$ 187,50 |
+| LLM Provider comparison (pesquisa + análise) | Pleno | 3,0h | R$ 75 | R$ 225,00 |
+| ADRs (estrutura + contexto + escrita) | Pleno | 3,5h | R$ 75 | R$ 262,50 |
+| Revisão crítica (análise vs requisitos) | Pleno | 2,5h | R$ 75 | R$ 187,50 |
+| **Total da fase** | | **15,5h** | | **R$ 1.162,50** |
+
+### Lições aprendidas
+- ✅ **C4 Model é uma estrutura excelente** — Claude compreende bem e documenta de forma clara. Sempre começar por Nível 1 (contexto) antes de descer para detalhes.
+- ✅ **Análise de trade-offs com valores do projeto** — Vincular cada decisão aos 5 valores (Pragmatismo, Custo, Contexto Real, Segurança, Transparência) deu clareza e alinhamento.
+- ⚠️ **Design Emergente > over-documentation** — Tentar documentar Nível 3 com subcomponentes antes de implementar gerou retrabalho. Melhor deixar estrutura básica e refinar durante dev.
+- ⚠️ **Análise crítica importante** — Revisão honesta da arquitetura vs Missão + Proposta identificou scope creep (MongoDB debate) e força melhores decisões.
+- ✅ **Claude com Haiku é suficiente** — Para arquitetura de alto nível, Haiku tem custo ~3x menor que Sonnet com qualidade adequada.
 
 ## Fase: Ensaio (Aulas 25-29)
 [Mesma estrutura, incluindo as três camadas de economicidade]
