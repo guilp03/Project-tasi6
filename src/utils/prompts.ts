@@ -1,4 +1,4 @@
-import { PRCorpus } from "./types";
+import { PRCorpus } from "../services/types";
 
 /**
  * Build the comprehensive audit prompt for LLM analysis
