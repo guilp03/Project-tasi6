@@ -26,10 +26,14 @@ async function main() {
       config.groqApiKey
     );
 
-    const result = await service.analyzeDiff(corpusFile, docsPath);
+    // TL-1: analyzePR returns the full AnalysisRecord (PR context + §5.6 analysis
+    // + LLM/token metadata). This is the integration point for the upcoming work:
+    //   - Reilson: persistir `record` no MongoDB (AnalysisRepository.save)
+    //   - Stela:   gerar Markdown a partir de `record` (ReportGenerator)
+    const record = await service.analyzePR(corpusFile, docsPath);
 
     console.log("\n[Result] Audit completed:");
-    console.log(JSON.stringify(result, null, 2));
+    console.log(JSON.stringify(record, null, 2));
   } catch (error) {
     console.error(
       "[Error]",

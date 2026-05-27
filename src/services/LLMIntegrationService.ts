@@ -5,10 +5,16 @@ import {
   PRCorpus,
   RoutingDecision,
   FileMetadata,
+  TokenUsage,
+  AnalysisRecord,
 } from "./types";
 import { buildAuditPrompt } from "../utils/prompts";
 
 export class LLMIntegrationService {
+  // Free-tier model IDs (ADR-005). Centralized so the record and the payloads agree.
+  private readonly GROQ_MODEL = "llama-3.3-70b-versatile";
+  private readonly GEMINI_MODEL = "gemini-1.5-flash";
+
   constructor(
     private geminiApiKey: string,
     private groqApiKey: string
@@ -52,6 +58,104 @@ export class LLMIntegrationService {
         error instanceof Error ? error.message : String(error);
       console.error(`[Error] LLM Analysis failed: ${message}`);
       throw error;
+    }
+  }
+
+  /**
+   * TL-1 orchestrator: run the full audit and return a complete AnalysisRecord
+   * (PR context + analysis aligned to §5.6 + LLM/token metadata + routing).
+   *
+   * Consumed by the persistence layer (Reilson) and the report generator (Stela).
+   * `analyzeDiff` is left untouched for backward compatibility.
+   */
+  async analyzePR(
+    corpusFilePath: string,
+    docsPath: string
+  ): Promise<AnalysisRecord> {
+    const corpus = await this.readCorpusFile(corpusFilePath);
+    const docsContent = await this.readDocsDirectory(docsPath);
+    const routing = this.calculateRoutingDecision(corpus);
+
+    console.log(
+      `[Routing] Using ${routing.provider.toUpperCase()} provider: ${routing.reason}`
+    );
+
+    const prompt = buildAuditPrompt(corpus, docsContent);
+
+    let result: AuditResult;
+    let usage: TokenUsage;
+    let model: string;
+    if (routing.provider === "gemini") {
+      ({ result, usage } = await this.callGeminiRaw(prompt));
+      model = this.GEMINI_MODEL;
+    } else {
+      ({ result, usage } = await this.callGroqRaw(prompt));
+      model = this.GROQ_MODEL;
+    }
+
+    return this.assembleRecord(corpus, routing, result, usage, model);
+  }
+
+  /**
+   * Map the raw AuditResult + context into the §5.6-aligned AnalysisRecord.
+   */
+  private assembleRecord(
+    corpus: PRCorpus,
+    routing: RoutingDecision,
+    result: AuditResult,
+    usage: TokenUsage,
+    model: string
+  ): AnalysisRecord {
+    return {
+      repository: corpus.pr.repository,
+      pullRequest: {
+        id: corpus.pr.number,
+        title: corpus.pr.title,
+        author: corpus.pr.author,
+        url: corpus.pr.html_url,
+      },
+      analysis: {
+        status: result.requires_docs_update ? "Atenção necessária" : "OK",
+        criticality: result.criticidade,
+        requiresDocsUpdate: result.requires_docs_update,
+        detectedChanges: corpus.files.map(
+          (f: FileMetadata) => `${f.path} (${f.status})`
+        ),
+        documentationGaps: result.gaps,
+        justification: result.justificativa,
+        recommendations: this.deriveRecommendations(result),
+      },
+      llm: {
+        provider: routing.provider,
+        model,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        estimatedCost: 0, // free tier
+      },
+      routing: { reason: routing.reason },
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Derive PMO-facing recommendations from the audit result.
+   */
+  private deriveRecommendations(result: AuditResult): string[] {
+    if (!result.requires_docs_update) {
+      return ["Documentação parece adequada; nenhuma ação documental necessária."];
+    }
+    switch (result.criticidade) {
+      case "Crítica":
+        return [
+          "Bloquear o merge: atualizar a documentação ANTES de aprovar o PR.",
+          "Revisar itens de segurança/infraestrutura impactados com o time responsável.",
+        ];
+      case "Alta":
+        return ["Atualizar a documentação antes de aprovar o PR."];
+      case "Média":
+        return ["Avaliar a atualização da documentação antes do merge."];
+      default:
+        return ["Atualização documental opcional/menor."];
     }
   }
 
@@ -187,11 +291,18 @@ export class LLMIntegrationService {
     return decision;
   }
 
-  /**
-   * Call Google Gemini API with JSON mode
-   */
+  /** Thin wrapper kept for backward compatibility (analyzeDiff + existing tests). */
   private async callGemini(prompt: string): Promise<AuditResult> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.geminiApiKey}`;
+    return (await this.callGeminiRaw(prompt)).result;
+  }
+
+  /**
+   * Call Google Gemini API with JSON mode, returning the parsed result + token usage.
+   */
+  private async callGeminiRaw(
+    prompt: string
+  ): Promise<{ result: AuditResult; usage: TokenUsage }> {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.GEMINI_MODEL}:generateContent?key=${this.geminiApiKey}`;
 
     const payload = {
       contents: [
@@ -223,14 +334,23 @@ export class LLMIntegrationService {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+      };
       const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!content) {
         throw new Error("Gemini returned empty content");
       }
 
-      return this.parseJSONSafely(content);
+      return {
+        result: this.parseJSONSafely(content),
+        usage: {
+          inputTokens: data.usageMetadata?.promptTokenCount ?? 0,
+          outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+        },
+      };
     } catch (error) {
       throw new Error(
         `Gemini call failed: ${error instanceof Error ? error.message : String(error)}`
@@ -238,14 +358,23 @@ export class LLMIntegrationService {
     }
   }
 
-  /**
-   * Call Groq API with JSON mode
-   */
+  /** Thin wrapper kept for backward compatibility (analyzeDiff + existing tests). */
   private async callGroq(prompt: string): Promise<AuditResult> {
+    return (await this.callGroqRaw(prompt)).result;
+  }
+
+  /**
+   * Call Groq API with JSON mode, returning the parsed result + token usage.
+   */
+  private async callGroqRaw(
+    prompt: string
+  ): Promise<{ result: AuditResult; usage: TokenUsage }> {
     const url = "https://api.groq.com/openai/v1/chat/completions";
 
     const payload = {
-      model: "mixtral-8x7b-32768",
+      // mixtral-8x7b-32768 foi descontinuado pela Groq (HTTP 400 model_decommissioned).
+      // llama-3.3-70b-versatile é o sucessor ativo no free tier (custo zero, contexto 128k).
+      model: this.GROQ_MODEL,
       messages: [
         {
           role: "user",
@@ -273,14 +402,23 @@ export class LLMIntegrationService {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
+      };
       const content = data.choices?.[0]?.message?.content;
 
       if (!content) {
         throw new Error("Groq returned empty content");
       }
 
-      return this.parseJSONSafely(content);
+      return {
+        result: this.parseJSONSafely(content),
+        usage: {
+          inputTokens: data.usage?.prompt_tokens ?? 0,
+          outputTokens: data.usage?.completion_tokens ?? 0,
+        },
+      };
     } catch (error) {
       throw new Error(
         `Groq call failed: ${error instanceof Error ? error.message : String(error)}`

@@ -1,316 +1,140 @@
-# PR Documentation Auditor - CLI with LLM Integration
+# PR Documentation Auditor
 
-A TypeScript/Node.js CLI tool that automatically audits Pull Requests to ensure code changes are properly documented, using intelligent routing between Groq (fast path) and Google Gemini (high-context fallback) LLMs.
+CLI em Node.js + TypeScript que audita automaticamente Pull Requests para garantir que mudanças de código estejam refletidas na documentação, usando roteamento inteligente entre dois provedores de LLM gratuitos (Groq no caminho rápido, Google Gemini no fallback de alto contexto e segurança).
 
-**Status**: MVP - Phase 3 (Ensaio e Ressonância) 🔄
+> **Status:** MVP — Fase 3 (Ensaio) 🔄
 
----
+## Problema
 
-## 🎯 What It Does
+A documentação de projetos grandes envelhece mais rápido do que é atualizada. Quem mais sofre com isso é o profissional de **PMO**, responsável por garantir documentação consistente para processos de release, auditoria e testes de funcionalidade e segurança — mas que normalmente **não tem expertise em código nem imersão diária no repositório**.
 
-1. **Extract PR Data** → Uses GitHub API to fetch PR metadata and diffs
-2. **Route Intelligently** → Detects security/auth/infra files and sizes (ADR-005)
-3. **Analyze with LLM** → Groq for standard PRs, Gemini for sensitive changes
-4. **Audit Gaps** → Compares code changes against existing documentation
-5. **Return Structured Results** → JSON with criticality levels and gaps
+Na prática, a cada Pull Request, esse profissional precisa recorrer a desenvolvedores para entender se uma mudança exige atualização de documentação. Isso cria um gargalo recorrente: ocorre em **todo PR relevante** de um repositório ativo, consome tempo de PMO e de devs, e abre espaço para que mudanças sensíveis (autenticação, infraestrutura, CI/CD) cheguem à produção sem documentação adequada.
 
-**Key Features:**
-- ✅ ADR-005: Cost-optimized routing (Groq ~$0.0001/req, Gemini fallback for security)
-- ✅ Structured Output: Forced JSON mode on both APIs
-- ✅ Security Detection: Auto-routes auth, .env, CI/CD, infra to Gemini
-- ✅ Graceful Fallback: Safe defaults if LLM response parsing fails
-- ✅ Native Fetch: No external HTTP libraries, pure Node.js 20+
+## Solução
 
----
+A aplicação é uma ferramenta de CI/CD acionada via linha de comando que:
 
-## 📁 Repository Structure
+1. **Extrai** os dados de um PR via GitHub API (metadados + diffs) e os serializa em `output/pr-corpus.json`.
+2. **Roteia** a análise de forma inteligente (ADR-005): PRs que tocam arquivos sensíveis (`auth`, `.env`, infraestrutura, CI/CD) ou diffs muito grandes vão para o **Gemini** (maior contexto e raciocínio); o caminho feliz padrão vai para o **Groq** (latência ultrabaixa, custo quase nulo).
+3. **Audita** as mudanças de código contra a documentação existente, identificando lacunas.
+4. **Retorna** um resultado estruturado em JSON com nível de criticidade, gaps e justificativa.
 
-```
-.
-├── docs/                          # All documentation
-│   ├── IMPLEMENTATION.md          # LLM Integration guide
-│   ├── Arquitetura.MD             # C4 Model & ADRs
-│   ├── CATALOGO_PROMPTS-v2.md     # Prompt catalog
-│   ├── Requisitos_longo.md        # Requirements
-│   └── ...
-│
-├── apps/
-│   └── poc-diff-reader/           # Original POC for PR extraction
-│       └── poc-diff-reader.ts
-│
-├── src/                           # Main application (NEW)
-│   ├── index.ts                   # CLI entry point
-│   ├── services/
-│   │   ├── types.ts              # All TypeScript interfaces
-│   │   ├── config.ts             # Environment loading
-│   │   └── LLMIntegrationService.ts  # Core service class
-│   └── utils/
-│       └── prompts.ts            # Prompt catalog
-│
-├── output/                        # Generated PR corpus files
-│   └── pr-{number}-{owner}-{repo}-corpus.json
-│
-├── .env.example                   # Environment template
-├── package.json
-├── tsconfig.json
-└── README.md (this file)
-```
+**Como a IA é utilizada:** a LLM compara semanticamente o que mudou no código com o que está documentado e classifica o risco da lacuna. O prompt é construído a partir de um catálogo versionado (`docs/CATALOGO_PROMPTS-v2.md`) e força *structured output* em JSON.
 
----
+**Diferencial:** em vez de usar um único modelo caro para tudo, o roteamento por sensibilidade/tamanho mantém **custo próximo de zero** (~R$ 0,0003–0,0005/PR) no caso comum, escalando para um modelo mais capaz apenas quando o risco justifica — garantindo zero falso-negativo em mudanças de segurança sem inflar o custo médio.
 
-## 🚀 Quick Start
+## Arquitetura (resumo)
 
-### Prerequisites
-- Node.js 20+
-- TypeScript
-- API Keys:
-  - [Groq API Key](https://console.groq.com) (free tier)
-  - [Gemini API Key](https://aistudio.google.com/app/apikey) (free)
-  - [GitHub Token](https://github.com/settings/tokens) (for PR extraction)
+Monólito CLI em TypeScript, sem servidor, projetado para rodar dentro de um pipeline de CI/CD:
 
-### Installation
+- **`apps/poc-diff-reader/`** — extrator de PR (GitHub API → `pr-corpus.json`).
+- **`src/services/LLMIntegrationService.ts`** — núcleo: lê o corpus, decide o roteamento (Groq vs Gemini), chama a API via `fetch` nativo e faz parse seguro do JSON.
+- **`src/services/types.ts`** — contratos (`AuditResult`, `PRCorpus`, `RoutingDecision`).
+- **`src/utils/prompts.ts`** — catálogo de prompts de auditoria.
+- **`src/index.ts`** — ponto de entrada da CLI.
+
+Decisões arquiteturais completas (C4 Model + ADR-001 a ADR-005) em **[docs/Arquitetura.MD](./docs/Arquitetura.MD)**. O roteamento Groq + Gemini é descrito na **ADR-005**.
+
+## Pré-requisitos
+
+- **Node.js 20+** (uso de `fetch` nativo, sem bibliotecas HTTP externas)
+- **TypeScript 5+** (executado via `ts-node`)
+- **Variáveis de ambiente** (ver `.env.example`):
+  - `GITHUB_TOKEN` — token para o extrator de PR ([gerar aqui](https://github.com/settings/tokens))
+  - `GROQ_API_KEY` — chave Groq, tier gratuito ([console.groq.com](https://console.groq.com))
+  - `GEMINI_API_KEY` — chave Gemini, gratuita ([aistudio.google.com](https://aistudio.google.com/app/apikey))
+
+## Instalação e Execução
 
 ```bash
-# Clone or enter the repository
+# 1. Entrar no repositório
 cd Project-tasi6
 
-# Install dependencies
+# 2. Instalar dependências
 npm install
 
-# Setup environment
+# 3. Configurar variáveis de ambiente
 cp .env.example .env
-# Edit .env with your API keys
+# edite .env com suas chaves (GITHUB_TOKEN, GROQ_API_KEY, GEMINI_API_KEY)
+
+# 4. Extrair os dados de um PR (gera output/pr-corpus.json)
+npm run poc:diff-reader -- <owner> <repo> <pr-number>
+# ex.: npm run poc:diff-reader -- facebook react 27534
+
+# 5. Rodar a auditoria sobre o corpus
+npm run audit
+# equivale a: npm run dev ./output/pr-corpus.json ./docs
 ```
 
-### Usage
+Para build de produção: `npm run build` (gera `./dist`).
+
+## Uso
+
+**Comando:**
 
 ```bash
-# Step 1: Extract PR data (generates pr-corpus.json)
-npm run poc:diff-reader -- facebook react 27534
-
-# Step 2: Run LLM audit on the corpus
-npm run audit
-# Output: AuditResult JSON to console
-
-# Or run directly:
 npm run dev ./output/pr-corpus.json ./docs
 ```
 
-**Output Example:**
+**Entrada:** um `pr-corpus.json` (gerado pelo extrator) e o diretório de documentação a ser auditado.
+
+**Saída** (exemplo real do formato `AuditResult`):
+
 ```json
 {
   "requires_docs_update": true,
   "criticidade": "Alta",
   "gaps": [
-    "New authentication endpoint not documented",
-    "Security changes to session handling missing from README"
+    "Novo endpoint de autenticação não documentado",
+    "Mudanças no tratamento de sessão ausentes do README"
   ],
-  "justificativa": "PR modifies authentication middleware and introduces breaking API changes, but docs don't reflect these critical updates."
+  "justificativa": "O PR modifica o middleware de autenticação e introduz mudanças de API que quebram compatibilidade, mas a documentação não reflete essas atualizações críticas."
 }
 ```
 
----
+Logs de roteamento indicam qual provedor foi escolhido:
 
-## 🔀 How Routing Works (ADR-005)
-
-The service automatically detects file patterns and routes accordingly:
-
-### → Groq (Default Fast Path)
-- Standard application code changes (src/, tests/, etc)
-- No sensitive files detected
-- Diff size < 30k tokens
-- **Speed**: ~50-100ms | **Cost**: ~$0.0001
-
-### → Gemini (High-Context Fallback)
-- Authentication files (`/auth`, `security/`)
-- Environment files (`.env*`)
-- Infrastructure files (`Dockerfile`, `Terraform`, `k8s/`)
-- CI/CD workflows (`.github/workflows/`)
-- Secrets/credentials/API keys
-- Large diffs (>30k tokens)
-- **Speed**: ~200-500ms | **Cost**: ~$0.0005
-
----
-
-## 📚 Documentation
-
-### Getting Started
-- **[IMPLEMENTATION.md](./docs/IMPLEMENTATION.md)** - Detailed LLM integration guide
-
-### Project Documentation
-- **[Arquitetura.MD](./docs/Arquitetura.MD)** - C4 Model & architectural decisions (ADRs)
-- **[ESCOPO_MVP_ATUALIZADO.md](./docs/ESCOPO_MVP_ATUALIZADO.md)** - MVP scope & features
-- **[Requisitos_longo.md](./docs/Requisitos_longo.md)** - 8 RF + 7 RNF detailed
-- **[CATALOGO_PROMPTS-v2.md](./docs/CATALOGO_PROMPTS-v2.md)** - LLM prompt catalog
-
-### Quick References
-- **[POC Usage](./docs/POC_DIFF_READER_USAGE.md)** - How to use diff-reader
-- **[Workflow](./docs/workflow.MD)** - AI usage & development process
-
----
-
-## 💻 API Reference
-
-### LLMIntegrationService
-
-```typescript
-import { LLMIntegrationService } from './services/LLMIntegrationService';
-import { loadConfig } from './services/config';
-
-const config = loadConfig();
-const service = new LLMIntegrationService(
-  config.geminiApiKey,
-  config.groqApiKey
-);
-
-// Main method
-const result = await service.analyzeDiff(
-  './output/pr-corpus.json',  // PR corpus from poc-diff-reader
-  './docs'                    // Path to documentation
-);
-
-console.log(result);
-// → AuditResult (typed, structured)
+```
+[Routing] Using GROQ provider: Standard path: fast & cost-effective
+[Routing] Using GEMINI provider: Security-sensitive files detected
 ```
 
-### AuditResult Type
+Níveis de criticidade: **Baixa** (cosmético), **Média** (ajustes menores), **Alta** (mudanças importantes de API/feature), **Crítica** (segurança, autenticação, infraestrutura, breaking changes).
 
-```typescript
-interface AuditResult {
-  requires_docs_update: boolean;  // Should docs be updated?
-  criticidade: "Baixa" | "Média" | "Alta" | "Crítica";
-  gaps: string[];                 // List of found gaps
-  justificativa: string;          // Explanation (Portuguese)
-}
-```
+## Limitações conhecidas
 
-**Criticality Levels:**
-- **Crítica** → Security, authentication, infrastructure, breaking changes
-- **Alta** → Important API/feature changes
-- **Média** → Minor updates or enhancements
-- **Baixa** → Cosmetic or style changes
+- **Sem teste end-to-end validado:** as métricas de latência/custo são projeções, ainda não medidas em execução real contra as APIs.
+- **Sem persistência:** não há histórico de auditorias (MongoDB previsto para v0.2).
+- **Sem parsing de argumentos robusto:** a CLI recebe argumentos posicionais simples, sem `commander`/`yargs`.
+- **Sem geração de relatório:** a saída é o JSON `AuditResult` no console; não há relatório Markdown formatado ainda.
+- **Dependência de APIs gratuitas:** sujeito a rate limits e à descontinuação de modelos (o modelo Groq precisou ser trocado quando o `mixtral-8x7b-32768` foi descontinuado).
+- **Onde a IA pode falhar:** documentação muito genérica confunde a detecção de gaps; diffs que excedem a janela de contexto exigem fragmentação; classificações de criticidade dependem da qualidade do prompt e podem variar entre execuções.
+- **Truncamento:** a documentação é truncada (~8000 caracteres) para controle de custo, podendo perder contexto em docs muito extensas.
 
----
+## Equipe
 
-## 🧪 Testing
+**Equipe 3**
 
-### Test with Groq (Standard Path)
-```bash
-# Create test corpus with no security files
-npm run dev ./test-corpus.json ./docs
-# → [Routing] Using GROQ provider: Standard path: fast & cost-effective
-```
+| Membro | Papel | Contribuições |
+|--------|-------|---------------|
+| Guilherme Pereira | Dev / Arquitetura / Implementação | C4 Model, ADRs, POC do extrator de PR, implementação inicial do CLI  |
+| Alexandre Moreno | Dev / TL / Arquitetura / Prompts | Catálogo de prompts, revisão crítica de decisões, implementação do `LLMIntegrationService` e roteamento ADR-005, reorganização do repositório. |
+| Stela Nascimento | Requisitos / Documentação | Levantamento de requisitos (RF/RNF), escopo do MVP e documentação. |
+| Reilson Fonseca | Análise / QA | Personas, validação de roteamento e casos de borda. |
 
-### Test with Gemini (Security Path)
-```bash
-# Create test corpus with .env or auth/ files
-npm run dev ./test-corpus.json ./docs
-# → [Routing] Using GEMINI provider: Security-sensitive files detected
-```
+## Referências
 
----
-
-## 🏗️ Build & Development
-
-```bash
-# Build TypeScript → JavaScript
-npm run build
-# Output: ./dist/
-
-# Development mode (watch & run with ts-node)
-npm run dev [corpus] [docs-path]
-
-# Run POC diff-reader
-npm run poc:diff-reader -- [owner] [repo] [pr-number]
-```
+- **Provedores LLM:** [Groq](https://console.groq.com) (modelos `llama3-70b-8192` / família Llama), [Google Gemini](https://aistudio.google.com) (Gemini 1.5 Flash/Pro).
+- **Documentação do projeto:**
+  - [Arquitetura.MD](./docs/Arquitetura.MD) — C4 Model e ADRs (ADR-005: roteamento Groq + Gemini)
+  - [IMPLEMENTATION.md](./docs/IMPLEMENTATION.md) — guia de integração da LLM
+  - [Requisitos_longo.md](./docs/Requisitos_longo.md) — 8 RF + 7 RNF
+  - [CATALOGO_PROMPTS-v2.md](./docs/CATALOGO_PROMPTS-v2.md) — catálogo de prompts
+  - [workflow.MD](./docs/workflow.MD) — registro de uso de IA e economicidade
+- **APIs externas:** GitHub REST API (extração de PRs).
 
 ---
 
-## 🔑 Environment Variables
-
-Create `.env` file (see `.env.example`):
-
-```env
-# GitHub API (for POC diff-reader)
-GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# LLM Providers
-GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-GEMINI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# Optional: MongoDB persistence (future)
-# MONGODB_URI=mongodb+srv://user:password@cluster/database
-```
-
----
-
-## 📊 Cost & Performance
-
-| Metric | Target | Status |
-|--------|--------|--------|
-| **Cost per PR** | < R$ 0.10 | ✅ ~R$ 0.0003-0.0005 |
-| **Latency** | < 30s | ✅ ~50-500ms (mostly Groq) |
-| **Security Accuracy** | 0% false negatives | ✅ Gemini fallback for sensitive |
-| **Uptime** | 99%+ | ⏳ Using free APIs |
-
----
-
-## 🎯 Next Steps (v0.2+)
-
-- [ ] MongoDB persistence & history
-- [ ] CLI with commander/yargs (arguments parsing)
-- [ ] Generate Markdown audit reports
-- [ ] GitHub Actions integration
-- [ ] Batch PR processing
-- [ ] Feedback learning loop
-
----
-
-## 📖 Key Decisions (ADRs)
-
-See **[Arquitetura.MD](./docs/Arquitetura.MD)** for full ADR documentation:
-
-- **ADR-001** → GitHub token strategy
-- **ADR-002** → Tech stack (Node.js + TypeScript)
-- **ADR-003** → MongoDB for history
-- **ADR-004** → GitHub Actions over servers
-- **ADR-005** → **Groq + Gemini routing** ← Our implementation
-
----
-
-## 🤝 Contributing
-
-Contributions welcome! Please:
-1. Read [Arquitetura.MD](./docs/Arquitetura.MD) for project context
-2. Follow TypeScript strict mode
-3. Update docs in `docs/` folder (not root)
-4. Place apps in `apps/` folder
-
----
-
-## 📝 License
+## Licença
 
 MIT
-
----
-
-## ❓ Support
-
-**Questions?** Check:
-1. [IMPLEMENTATION.md](./docs/IMPLEMENTATION.md) - Detailed guide
-2. [Arquitetura.MD](./docs/Arquitetura.MD) - Architecture & decisions
-3. `.env.example` - Configuration template
-
-**Issues running?**
-```bash
-# Verify setup
-echo "GROQ_API_KEY=$GROQ_API_KEY"
-echo "GEMINI_API_KEY=$GEMINI_API_KEY"
-
-# Check corpus exists
-ls -la ./output/pr-*-corpus.json
-
-# Check documentation path
-ls -la ./docs/
-```
-
