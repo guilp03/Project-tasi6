@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/index.ts",
-    "poc:diff-reader": "ts-node poc-diff-reader.ts",
+    "audit": "ts-node src/index.ts ./output/pr-corpus.json ./docs",
+    "poc:diff-reader": "ts-node apps/poc-diff-reader/poc-diff-reader.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
