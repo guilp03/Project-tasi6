@@ -6,26 +6,19 @@ export interface AuditResult {
   justificativa: string;
 }
 
-// PR Corpus types (from poc-diff-reader)
+// PR Corpus types (simplified with inline diff)
 export interface FileMetadata {
   path: string;
   status: "added" | "modified" | "deleted" | "renamed";
-  additions?: number;
-  deletions?: number;
-  language?: string;
-  isPublicAPI?: boolean;
-  isTest?: boolean;
-  isDocumentation?: boolean;
-  isConfig?: boolean;
-}
-
-export interface PRCorpusStats {
-  files_changed: number;
   additions: number;
   deletions: number;
-  commits?: number;
-  comments?: number;
-  review_comments?: number;
+  language: string;
+  isPublicAPI: boolean;
+  isTest: boolean;
+  isDocumentation: boolean;
+  isConfig: boolean;
+  changeSummary: string;
+  diff: string;
 }
 
 export interface PRCorpus {
@@ -33,23 +26,18 @@ export interface PRCorpus {
     number: string;
     repository: string;
     title: string;
-    description?: string | null;
+    description: string | null;
     author: string;
-    state: string;
-    merged: boolean;
     labels: string[];
-    stats: PRCorpusStats;
     html_url: string;
   };
   files: FileMetadata[];
-  manifest?: {
-    total_hunks: number;
-    files_with_hunks: number;
-    public_api_files: number;
-    test_files: number;
-    documentation_files: number;
-  };
 }
+
+export const DIFF_SIZE_THRESHOLD = 30000;
+export const GROQ_DIFF_CHAR_LIMIT = 6000;
+export const GEMINI_DIFF_CHAR_LIMIT = 120000;
+export const DOCS_CHAR_LIMIT = 8000;
 
 export interface RoutingDecision {
   provider: "gemini" | "groq";
