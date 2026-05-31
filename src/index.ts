@@ -1,3 +1,6 @@
+import * as dotenv from "dotenv";
+dotenv.config();
+
 import { LLMIntegrationService } from "./services/LLMIntegrationService.js";
 import { loadConfig } from "./services/config.js";
 

@@ -14,7 +14,7 @@ import { buildAuditPrompt } from "../utils/prompts.js";
 export class LLMIntegrationService {
   // Free-tier model IDs (ADR-005). Centralized so the record and the payloads agree.
   private readonly GROQ_MODEL = "llama-3.3-70b-versatile";
-  private readonly GEMINI_MODEL = "gemini-1.5-flash";
+  private readonly GEMINI_MODEL = "gemini-2.5-flash";
 
   constructor(
     private geminiApiKey: string,

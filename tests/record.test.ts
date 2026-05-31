@@ -97,7 +97,7 @@ describe("analyzePR -> AnalysisRecord (TL-1 contract)", () => {
     const record = await service.analyzePR(corpusPath, docsPath);
 
     expect(record.llm.provider).toBe("gemini");
-    expect(record.llm.model).toBe("gemini-1.5-flash");
+    expect(record.llm.model).toBe("gemini-2.5-flash");
     expect(record.llm.inputTokens).toBe(1500);
     expect(record.llm.outputTokens).toBe(400);
   });
