@@ -1,4 +1,4 @@
-import { PRCorpus, FileMetadata, GROQ_DIFF_CHAR_LIMIT, GEMINI_DIFF_CHAR_LIMIT } from "../services/types";
+import { PRCorpus, FileMetadata, GROQ_DIFF_CHAR_LIMIT, GEMINI_DIFF_CHAR_LIMIT } from "../services/types.js";
 
 export interface TruncatedDiff {
   path: string;

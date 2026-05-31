@@ -32,15 +32,14 @@ function writeDocs(content = "# README\nProject docs.") {
   return docsDir;
 }
 
-/** Capture which provider endpoint was hit and return a valid Groq/Gemini body. */
 function mockBothProviders() {
   const fn = vi.fn((url: string) => {
     if (url.includes("groq.com")) {
-      return { ok: true, json: async () => ({ choices: [{ message: { content: VALID_AUDIT_JSON } }] }) };
+      return { ok: true, json: async () => ({ choices: [{ message: { content: VALID_AUDIT_JSON } }], usage: { prompt_tokens: 100, completion_tokens: 50 } }) };
     }
     return {
       ok: true,
-      json: async () => ({ candidates: [{ content: { parts: [{ text: VALID_AUDIT_JSON }] } }] }),
+      json: async () => ({ candidates: [{ content: { parts: [{ text: VALID_AUDIT_JSON }] } }], usageMetadata: { promptTokenCount: 150, candidatesTokenCount: 60 } }),
     };
   });
   vi.stubGlobal("fetch", fn);
@@ -69,6 +68,17 @@ describe("readCorpusFile / readDocsDirectory", () => {
     expect(content).toContain("Hello docs.");
   });
 
+  it("reads multiple .md files when no priority file exists", async () => {
+    const docsDir = path.join(tmpDir, "multi-docs");
+    fs.mkdirSync(docsDir);
+    fs.writeFileSync(path.join(docsDir, "guide.md"), "# Guide\nHow to use.");
+    fs.writeFileSync(path.join(docsDir, "api.md"), "# API\nEndpoints.");
+
+    const content = await (service as any).readDocsDirectory(docsDir);
+    expect(content).toContain("Endpoints.");
+    expect(content).toContain("How to use.");
+  });
+
   it("returns a placeholder when no documentation is found", async () => {
     const empty = path.join(tmpDir, "empty");
     fs.mkdirSync(empty);
@@ -80,7 +90,7 @@ describe("readCorpusFile / readDocsDirectory", () => {
 describe("analyzeDiff end-to-end (mocked LLMs)", () => {
   it("runs the happy path through Groq for non-sensitive PRs", async () => {
     const fetchFn = mockBothProviders();
-    const corpusPath = writeCorpus("c.json", [file("src/feature.ts", 20)]);
+    const corpusPath = writeCorpus("c.json", [file("src/feature.ts", 20, 0, "modified", "+export function newFeature() {\n+  return true;\n+}")]);
     const docsDir = writeDocs();
 
     const service = new LLMIntegrationService("gemini-key", "groq-key");
@@ -92,7 +102,20 @@ describe("analyzeDiff end-to-end (mocked LLMs)", () => {
 
   it("routes sensitive PRs (.env) through Gemini", async () => {
     const fetchFn = mockBothProviders();
-    const corpusPath = writeCorpus("c.json", [file(".env"), file("src/feature.ts")]);
+    const envFile: import("../src/services/types").FileMetadata = {
+      path: ".env",
+      status: "modified",
+      additions: 3,
+      deletions: 0,
+      language: "YAML",
+      isPublicAPI: false,
+      isTest: false,
+      isDocumentation: false,
+      isConfig: true,
+      changeSummary: "Env variable changes",
+      diff: "+DATABASE_URL=postgres://prod-host/db",
+    };
+    const corpusPath = writeCorpus("c.json", [envFile, file("src/x.ts")]);
     const docsDir = writeDocs();
 
     const service = new LLMIntegrationService("gemini-key", "groq-key");

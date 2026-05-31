@@ -7,8 +7,9 @@ import {
   FileMetadata,
   TokenUsage,
   AnalysisRecord,
-} from "./types";
-import { buildAuditPrompt } from "../utils/prompts";
+  DIFF_SIZE_THRESHOLD,
+} from "./types.js";
+import { buildAuditPrompt } from "../utils/prompts.js";
 
 export class LLMIntegrationService {
   // Free-tier model IDs (ADR-005). Centralized so the record and the payloads agree.
@@ -42,7 +43,7 @@ export class LLMIntegrationService {
       );
 
       // Build the audit prompt
-      const prompt = buildAuditPrompt(corpus, docsContent);
+      const prompt = buildAuditPrompt(corpus, docsContent, routing.provider);
 
       // Call appropriate API
       let result: AuditResult;
@@ -80,7 +81,7 @@ export class LLMIntegrationService {
       `[Routing] Using ${routing.provider.toUpperCase()} provider: ${routing.reason}`
     );
 
-    const prompt = buildAuditPrompt(corpus, docsContent);
+    const prompt = buildAuditPrompt(corpus, docsContent, routing.provider);
 
     let result: AuditResult;
     let usage: TokenUsage;
@@ -181,27 +182,40 @@ export class LLMIntegrationService {
    */
   private async readDocsDirectory(docsPath: string): Promise<string> {
     const absolutePath = path.resolve(docsPath);
+    const DOCS_CHAR_LIMIT = 8000;
 
-    // Priority: README.md, then any markdown files
     const priorityFiles = ["README.md", "readme.md", "API.md", "DOCUMENTATION.md"];
 
     for (const file of priorityFiles) {
       const filePath = path.join(absolutePath, file);
       if (fs.existsSync(filePath)) {
         try {
-          return fs.readFileSync(filePath, "utf-8").slice(0, 8000); // Truncate to 8000 chars
+          return fs.readFileSync(filePath, "utf-8").slice(0, DOCS_CHAR_LIMIT);
         } catch {
           // Continue to next file
         }
       }
     }
 
-    // Fallback: read first .md file found
     try {
       const files = fs.readdirSync(absolutePath).filter((f) => f.endsWith(".md"));
-      if (files.length > 0) {
+      if (files.length === 1) {
         const filePath = path.join(absolutePath, files[0]);
-        return fs.readFileSync(filePath, "utf-8").slice(0, 8000);
+        return fs.readFileSync(filePath, "utf-8").slice(0, DOCS_CHAR_LIMIT);
+      }
+      if (files.length > 1) {
+        let combined = "";
+        for (const f of files.sort()) {
+          const filePath = path.join(absolutePath, f);
+          const content = fs.readFileSync(filePath, "utf-8");
+          const entry = `\n--- ${f} ---\n${content}\n`;
+          if (combined.length + entry.length > DOCS_CHAR_LIMIT) {
+            combined += `\n--- ${f} ---\n${content.slice(0, DOCS_CHAR_LIMIT - combined.length)}\n[truncated]`;
+            break;
+          }
+          combined += entry;
+        }
+        return combined || "[No documentation found]";
       }
     } catch {
       // Ignore
@@ -230,7 +244,7 @@ export class LLMIntegrationService {
 
     // Calculate total diff size
     const totalDiffSize = corpus.files.reduce(
-      (sum, f) => sum + (f.additions || 0) + (f.deletions || 0),
+      (sum, f) => sum + (f.diff?.length || 0),
       0
     );
     decision.context.totalDiffSize = totalDiffSize;
@@ -280,7 +294,7 @@ export class LLMIntegrationService {
       decision.provider = "gemini";
       decision.reason =
         "Security-sensitive files detected (auth, env, secrets, infra, CI/CD)";
-    } else if (totalDiffSize > 30000) {
+    } else if (totalDiffSize > DIFF_SIZE_THRESHOLD) {
       decision.provider = "gemini";
       decision.reason = `Large diff (${totalDiffSize} tokens) requires Gemini's larger context`;
     } else {

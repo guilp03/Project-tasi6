@@ -1,14 +1,14 @@
-import { LLMIntegrationService } from "./services/LLMIntegrationService";
-import { loadConfig } from "./services/config";
+import { LLMIntegrationService } from "./services/LLMIntegrationService.js";
+import { loadConfig } from "./services/config.js";
 
 async function main() {
   const args = process.argv.slice(2);
 
   if (args.length < 2) {
     console.error(
-      "Usage: npx ts-node src/index.ts <corpus-file> <docs-path>"
+      "Usage: npm run dev <corpus-file> <docs-path>"
     );
-    console.error("Example: npx ts-node src/index.ts ./output/pr-corpus.json ./docs");
+    console.error("Example: npm run dev ./output/pr-corpus.json ./docs");
     process.exit(1);
   }
 

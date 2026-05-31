@@ -25,7 +25,6 @@ function writeCorpus(files: Parameters<typeof makeCorpus>[0]) {
   return { corpusPath: p, docsPath: path.join(tmpDir, "docs") };
 }
 
-/** Groq response including usage; Gemini response including usageMetadata. */
 function mockProviders() {
   const fn = vi.fn((url: string) => {
     if (url.includes("groq.com")) {
@@ -57,33 +56,42 @@ describe("analyzePR -> AnalysisRecord (TL-1 contract)", () => {
     const service = new LLMIntegrationService("gemini-key", "groq-key");
     const record = await service.analyzePR(corpusPath, docsPath);
 
-    // PR context
     expect(record.repository).toBe("acme/widget");
     expect(record.pullRequest.id).toBe("123");
     expect(record.pullRequest.url).toContain("github.com");
 
-    // §5.6 analysis block
-    expect(record.analysis.status).toBe("Atenção necessária"); // VALID_AUDIT_JSON => requires update
+    expect(record.analysis.status).toBe("Atenção necessária");
     expect(record.analysis.criticality).toBe("Alta");
     expect(record.analysis.documentationGaps).toEqual(["Novo endpoint não documentado"]);
     expect(record.analysis.detectedChanges).toContain("src/feature.ts (modified)");
     expect(record.analysis.recommendations.length).toBeGreaterThan(0);
 
-    // LLM metadata + token usage
     expect(record.llm.provider).toBe("groq");
     expect(record.llm.model).toBe("llama-3.3-70b-versatile");
     expect(record.llm.inputTokens).toBe(1200);
     expect(record.llm.outputTokens).toBe(300);
     expect(record.llm.estimatedCost).toBe(0);
 
-    // routing + timestamp
     expect(record.routing.reason).toMatch(/standard/i);
     expect(() => new Date(record.createdAt).toISOString()).not.toThrow();
   });
 
   it("routes sensitive PRs through Gemini and records its usageMetadata", async () => {
     mockProviders();
-    const { corpusPath, docsPath } = writeCorpus([file(".env"), file("src/x.ts")]);
+    const envFile: import("../src/services/types").FileMetadata = {
+      path: ".env",
+      status: "modified",
+      additions: 3,
+      deletions: 0,
+      language: "YAML",
+      isPublicAPI: false,
+      isTest: false,
+      isDocumentation: false,
+      isConfig: true,
+      changeSummary: "Env changes",
+      diff: "+DATABASE_URL=postgres://host/db",
+    };
+    const { corpusPath, docsPath } = writeCorpus([envFile, file("src/x.ts")]);
 
     const service = new LLMIntegrationService("gemini-key", "groq-key");
     const record = await service.analyzePR(corpusPath, docsPath);

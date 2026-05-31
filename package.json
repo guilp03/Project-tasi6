@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "dev": "ts-node src/index.ts",
-    "audit": "ts-node src/index.ts ./output/pr-corpus.json ./docs",
-    "poc:diff-reader": "ts-node apps/poc-diff-reader/poc-diff-reader.ts",
+    "dev": "tsx src/index.ts",
+    "audit": "tsx src/index.ts ./output/pr-corpus.json ./docs",
+    "poc:diff-reader": "tsx apps/poc-diff-reader/poc-diff-reader.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -27,6 +27,7 @@
     "@types/node": "^20.10.0",
     "@vitest/coverage-v8": "^4.1.7",
     "ts-node": "^10.9.1",
+    "tsx": "^4.22.4",
     "typescript": "^5.4.5",
     "vitest": "^4.1.7"
   },
