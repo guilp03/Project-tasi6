@@ -1,0 +1,39 @@
+{
+  "name": "pr-documentation-auditor",
+  "version": "0.1.0",
+  "description": "Ferramenta de auditoria automatizada de documentação em PRs com IA",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "audit": "tsx src/index.ts ./output/pr-corpus.json ./docs",
+    "poc:diff-reader": "tsx apps/poc-diff-reader/poc-diff-reader.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "github",
+    "pr",
+    "documentation",
+    "ai",
+    "llm",
+    "audit"
+  ],
+  "author": "Guilherme Pereira",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@vitest/coverage-v8": "^4.1.7",
+    "mongodb-memory-server": "^11.2.0",
+    "ts-node": "^10.9.1",
+    "tsx": "^4.22.4",
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.7"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "mongoose": "^9.6.3"
+  }
+}
