@@ -58,6 +58,14 @@ const AnalysisSchema = new Schema<AnalysisDocument>(
 );
 
 // ---------------------------------------------------------------------------
+// Indexes — improve query performance
+// ---------------------------------------------------------------------------
+
+// Most common query: recent records by repository
+AnalysisSchema.index({ createdAt: -1 });
+AnalysisSchema.index({ repository: 1, createdAt: -1 });
+
+// ---------------------------------------------------------------------------
 // Model (lazy singleton — avoids "Cannot overwrite model" in test reruns)
 // ---------------------------------------------------------------------------
 
@@ -111,5 +119,63 @@ export class AnalysisRepository {
       .limit(limit)
       .lean<AnalysisRecord[]>();
     return docs;
+  }
+
+  /**
+   * Find a single record by its MongoDB ObjectId string.
+   * Returns null when no document matches the given id.
+   */
+  async findById(id: string): Promise<AnalysisRecord | null> {
+    await this.ensureConnection();
+    const AnalysisModel = getModel();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
+    }
+    const doc = await AnalysisModel.findById(id).lean<AnalysisRecord>();
+    return doc ?? null;
+  }
+
+  /**
+   * Update an existing record's analysis fields.
+   * Returns the updated record, or null if the id was not found.
+   * Only allows updating the mutable `analysis` sub-document to preserve
+   * immutable fields (repository, pullRequest, llm, routing, createdAt).
+   */
+  async update(
+    id: string,
+    patch: Partial<AnalysisRecord["analysis"]>
+  ): Promise<AnalysisRecord | null> {
+    await this.ensureConnection();
+    const AnalysisModel = getModel();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
+    }
+
+    const updateFields: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(patch)) {
+      updateFields[`analysis.${key}`] = value;
+    }
+
+    const doc = await AnalysisModel.findByIdAndUpdate(
+      id,
+      { $set: updateFields },
+      { returnDocument: 'after', runValidators: true }
+    ).lean<AnalysisRecord>();
+
+    return doc ?? null;
+  }
+
+  /**
+   * Remove a record by its MongoDB ObjectId string.
+   * Returns true when deleted, false when the id was not found.
+   */
+  async deleteById(id: string): Promise<boolean> {
+    await this.ensureConnection();
+    const AnalysisModel = getModel();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return false;
+    }
+    const result = await AnalysisModel.findByIdAndDelete(id);
+    return result !== null;
   }
 }

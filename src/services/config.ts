@@ -20,3 +20,12 @@ export function loadConfig(): LLMConfig {
     groqApiKey,
   };
 }
+
+/**
+ * Returns the MongoDB connection URI from the environment, or undefined when
+ * the variable is not set (persistence is optional — the analysis pipeline
+ * continues without it).
+ */
+export function getMongoUri(): string | undefined {
+  return process.env.MONGODB_URI;
+}

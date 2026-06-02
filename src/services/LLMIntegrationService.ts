@@ -184,29 +184,44 @@ export class LLMIntegrationService {
     const absolutePath = path.resolve(docsPath);
     const DOCS_CHAR_LIMIT = 8000;
 
-    const priorityFiles = ["README.md", "readme.md", "API.md", "DOCUMENTATION.md"];
+    // Priority file names matched case-insensitively so the logic behaves the
+    // same on case-insensitive (Windows/macOS) and case-sensitive (Linux) FS.
+    // Only whole-project overview files are treated as priority — api.md,
+    // guide.md, etc. are combined together with the rest of the .md files.
+    const priorityNames = ["readme.md", "documentation.md"];
 
-    for (const file of priorityFiles) {
-      const filePath = path.join(absolutePath, file);
-      if (fs.existsSync(filePath)) {
+    let allFiles: string[] = [];
+    try {
+      allFiles = fs.readdirSync(absolutePath);
+    } catch {
+      return "[No documentation found]";
+    }
+
+    for (const name of priorityNames) {
+      const match = allFiles.find((f) => f.toLowerCase() === name);
+      if (match) {
         try {
-          return fs.readFileSync(filePath, "utf-8").slice(0, DOCS_CHAR_LIMIT);
+          return fs.readFileSync(path.join(absolutePath, match), "utf-8").slice(0, DOCS_CHAR_LIMIT);
         } catch {
-          // Continue to next file
+          // Continue to next priority file
         }
       }
     }
 
-    try {
-      const files = fs.readdirSync(absolutePath).filter((f) => f.endsWith(".md"));
-      if (files.length === 1) {
-        const filePath = path.join(absolutePath, files[0]);
-        return fs.readFileSync(filePath, "utf-8").slice(0, DOCS_CHAR_LIMIT);
+    // No priority file matched — combine all .md files
+    const mdFiles = allFiles.filter((f) => f.toLowerCase().endsWith(".md"));
+    if (mdFiles.length === 1) {
+      try {
+        return fs.readFileSync(path.join(absolutePath, mdFiles[0]), "utf-8").slice(0, DOCS_CHAR_LIMIT);
+      } catch {
+        // fall through
       }
-      if (files.length > 1) {
-        let combined = "";
-        for (const f of files.sort()) {
-          const filePath = path.join(absolutePath, f);
+    }
+    if (mdFiles.length > 1) {
+      let combined = "";
+      for (const f of mdFiles.sort()) {
+        const filePath = path.join(absolutePath, f);
+        try {
           const content = fs.readFileSync(filePath, "utf-8");
           const entry = `\n--- ${f} ---\n${content}\n`;
           if (combined.length + entry.length > DOCS_CHAR_LIMIT) {
@@ -214,11 +229,11 @@ export class LLMIntegrationService {
             break;
           }
           combined += entry;
+        } catch {
+          // Skip unreadable files
         }
-        return combined || "[No documentation found]";
       }
-    } catch {
-      // Ignore
+      if (combined) return combined;
     }
 
     return "[No documentation found]";

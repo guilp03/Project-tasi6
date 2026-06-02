@@ -35,5 +35,9 @@
   "dependencies": {
     "dotenv": "^16.3.1",
     "mongoose": "^9.6.3"
+  },
+  "mongodbMemoryServer": {
+    "version": "7.0.20",
+    "downloadDir": "./.mongodb-binaries"
   }
 }

@@ -228,4 +228,137 @@ describe("AnalysisRepository", () => {
       expect(results[1].createdAt).toBe("2024-06-01T09:00:00.000Z");
     });
   });
+
+  describe("findById()", () => {
+    it("returns the correct record by id", async () => {
+      const repo = new AnalysisRepository();
+      const record = makeRecord({ repository: "acme/find-by-id" });
+      const id = await repo.save(record);
+
+      const found = await repo.findById(id);
+
+      expect(found).not.toBeNull();
+      expect(found!.repository).toBe("acme/find-by-id");
+      expect(found!.pullRequest.id).toBe(record.pullRequest.id);
+    });
+
+    it("returns null for a non-existent ObjectId", async () => {
+      const repo = new AnalysisRepository();
+      const fakeId = new (mongoose.Types.ObjectId)().toString();
+
+      const found = await repo.findById(fakeId);
+
+      expect(found).toBeNull();
+    });
+
+    it("returns null for an invalid id string (not an ObjectId)", async () => {
+      const repo = new AnalysisRepository();
+
+      const found = await repo.findById("not-a-valid-objectid");
+
+      expect(found).toBeNull();
+    });
+  });
+
+  describe("update()", () => {
+    it("updates analysis fields and returns the updated record", async () => {
+      const repo = new AnalysisRepository();
+      const id = await repo.save(makeRecord());
+
+      const updated = await repo.update(id, {
+        status: "OK",
+        requiresDocsUpdate: false,
+        recommendations: ["No action needed"],
+      });
+
+      expect(updated).not.toBeNull();
+      expect(updated!.analysis.status).toBe("OK");
+      expect(updated!.analysis.requiresDocsUpdate).toBe(false);
+      expect(updated!.analysis.recommendations).toEqual(["No action needed"]);
+    });
+
+    it("does not alter fields outside the analysis sub-document", async () => {
+      const repo = new AnalysisRepository();
+      const record = makeRecord({ repository: "acme/immutable" });
+      const id = await repo.save(record);
+
+      await repo.update(id, { status: "OK" });
+
+      const found = await repo.findById(id);
+      expect(found!.repository).toBe("acme/immutable");
+      expect(found!.pullRequest.author).toBe(record.pullRequest.author);
+      expect(found!.llm.provider).toBe(record.llm.provider);
+    });
+
+    it("returns null for a non-existent id", async () => {
+      const repo = new AnalysisRepository();
+      const fakeId = new (mongoose.Types.ObjectId)().toString();
+
+      const result = await repo.update(fakeId, { status: "OK" });
+
+      expect(result).toBeNull();
+    });
+
+    it("returns null for an invalid id string", async () => {
+      const repo = new AnalysisRepository();
+
+      const result = await repo.update("not-valid", { status: "OK" });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("deleteById()", () => {
+    it("deletes an existing record and returns true", async () => {
+      const repo = new AnalysisRepository();
+      const id = await repo.save(makeRecord());
+
+      const deleted = await repo.deleteById(id);
+
+      expect(deleted).toBe(true);
+    });
+
+    it("the record is no longer found after deletion", async () => {
+      const repo = new AnalysisRepository();
+      const id = await repo.save(makeRecord());
+      await repo.deleteById(id);
+
+      const found = await repo.findById(id);
+
+      expect(found).toBeNull();
+    });
+
+    it("returns false for a non-existent ObjectId", async () => {
+      const repo = new AnalysisRepository();
+      const fakeId = new (mongoose.Types.ObjectId)().toString();
+
+      const result = await repo.deleteById(fakeId);
+
+      expect(result).toBe(false);
+    });
+
+    it("returns false for an invalid id string", async () => {
+      const repo = new AnalysisRepository();
+
+      const result = await repo.deleteById("not-a-valid-id");
+
+      expect(result).toBe(false);
+    });
+
+    it("does not affect other records when one is deleted", async () => {
+      const repo = new AnalysisRepository();
+      const id1 = await repo.save(makeRecord({ repository: "acme/keep" }));
+      const id2 = await repo.save(makeRecord({ repository: "acme/delete" }));
+
+      await repo.deleteById(id2);
+
+      const remaining = await repo.findRecent(10);
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].repository).toBe("acme/keep");
+
+      // id1 still accessible by findById
+      const stillThere = await repo.findById(id1);
+      expect(stillThere).not.toBeNull();
+    });
+  });
 });

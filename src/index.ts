@@ -2,7 +2,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 import { LLMIntegrationService } from "./services/LLMIntegrationService.js";
-import { loadConfig } from "./services/config.js";
+import { loadConfig, getMongoUri } from "./services/config.js";
 import { AnalysisRepository } from "./services/persistence/AnalysisRepository.js";
 
 async function main() {
@@ -37,15 +37,21 @@ async function main() {
     const record = await service.analyzePR(corpusFile, docsPath);
 
     // Persist to MongoDB — failure must never abort the main flow.
-    try {
-      const repository = new AnalysisRepository();
-      const id = await repository.save(record);
-      console.log(`[MongoDB] Record saved with id: ${id}`);
-    } catch (persistError) {
-      console.warn(
-        "[MongoDB] Persistence unavailable:",
-        persistError instanceof Error ? persistError.message : String(persistError)
-      );
+    // MONGODB_URI is optional: if not set, persistence is silently skipped.
+    const mongoUri = getMongoUri();
+    if (mongoUri) {
+      try {
+        const repository = new AnalysisRepository();
+        const id = await repository.save(record);
+        console.log(`[MongoDB] Record saved with id: ${id}`);
+      } catch (persistError) {
+        console.warn(
+          "[MongoDB] Persistence unavailable:",
+          persistError instanceof Error ? persistError.message : String(persistError)
+        );
+      }
+    } else {
+      console.log("[MongoDB] MONGODB_URI not set — skipping persistence.");
     }
 
     console.log("\n[Result] Audit completed:");
