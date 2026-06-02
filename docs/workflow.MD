@@ -271,7 +271,68 @@ Ainda fora do MVP (escopo §5.5/§5.6 e entregáveis CP3), agora distribuídas e
 - ✅ **Definir o contrato antes de paralelizar** — ao delegar persistência e relatório, criar primeiro o tipo `AnalysisRecord` (tarefa da TL) evita que Reilson e Stela alterem o mesmo contrato em dois lugares.
 
 ## Fase: Ressonância (Aulas 30-32)
-[Mesma estrutura, incluindo as três camadas de economicidade]
+
+### Onde a IA ajudou
+- **Análise completa do projeto antes de qualquer alteração:** Claude leu toda a estrutura do repositório (arquivos fonte, testes, docs, `package.json`, `tsconfig.json`) e identificou o que já existia na camada de persistência (`save` e `findRecent`) e o que estava faltando (`findById`, `update`, `deleteById`), evitando retrabalho e duplicação.
+- **CRUD completo no `AnalysisRepository`:** Claude implementou os três métodos faltantes respeitando os padrões já existentes no arquivo — mesmo estilo de `ensureConnection`, mesmo tratamento de `ObjectId` inválido retornando `null` em vez de lançar exceção, uso de `.lean()` para retornar objetos simples compatíveis com `AnalysisRecord`.
+- **Índices Mongoose:** Claude identificou que o schema não tinha índices e adicionou `{ createdAt: -1 }` e `{ repository: 1, createdAt: -1 }` diretamente no schema, seguindo a convenção já usada no restante do arquivo.
+- **Correção do warning de API deprecated:** Claude identificou que `{ new: true }` no `findOneAndUpdate` estava gerando warning do Mongoose 9 e corrigiu para `{ returnDocument: 'after' }` — que é a forma padronizada pelo driver nativo.
+- **Correção de bug pré-existente no `readDocsDirectory`:** Ao rodar os testes no Windows, o teste `"reads multiple .md files when no priority file exists"` falhava porque `api.md` estava na lista de arquivos prioritários e era retornado sozinho sem combinar com os demais. Claude identificou a causa raiz (comparação case-sensitive + `api.md` indevidamente prioritário) e corrigiu a lógica para comparação case-insensitive e remoção de `api.md` da lista de prioridade.
+- **12 novos testes automatizados:** Claude escreveu os testes para `findById`, `update` e `deleteById` cobrindo casos felizes e casos de borda (ObjectId inexistente, string inválida como id, preservação de campos imutáveis), mantendo o mesmo padrão de `makeRecord` e estrutura `describe/it` já usados nos testes existentes.
+- **Atualização da documentação:** Claude atualizou `docs/PERSISTENCE.md` adicionando a descrição de cada novo método com assinatura TypeScript, exemplos de uso e tabela de índices criados.
+
+### Onde a IA não ajudou (ou atrapalhou)
+- **Ambiente de CI/sandbox:** O `mongodb-memory-server` tenta baixar o binário do MongoDB em tempo de execução; no ambiente sandbox usado durante o desenvolvimento assistido o domínio `fastdl.mongodb.org` estava bloqueado, então os testes de persistência só puderam ser validados localmente no Windows. A IA não tinha como contornar essa limitação de rede.
+- **Detecção do bug do Windows antecipada:** O bug de comparação case-sensitive no `readDocsDirectory` existia desde a fase Ensaio mas só foi descoberto ao rodar os testes no Windows — a IA não havia detectado o problema antes porque os testes passavam no Linux (case-sensitive por padrão).
+
+### Prompts notáveis desta fase
+- PROMPT-R1: *"Analise completamente o projeto contido neste arquivo ZIP e implemente suporte a MongoDB seguindo a arquitetura já existente [...] Não faça alterações desnecessárias. Preserve a arquitetura atual do projeto."* — gerou a análise prévia completa + implementação do CRUD em um único fluxo assistido.
+- PROMPT-R2 (follow-up): *"deu essa saída no terminal [output com warning do Mongoose]"* — Claude identificou o `{ new: true }` deprecated e entregou o arquivo corrigido.
+- PROMPT-R3 (follow-up): *"[output com falha no teste de múltiplos .md no Windows]"* — Claude diagnosticou a causa raiz (case-sensitivity + `api.md` na lista de prioridade) e corrigiu o `LLMIntegrationService.ts`.
+
+### Decisões tomadas sem IA
+- **Escopo da `update()`:** decisão de restringir a atualização apenas ao sub-documento `analysis` (campos imutáveis como `repository`, `pullRequest`, `llm`, `routing` e `createdAt` não podem ser alterados via `update`) — julgamento de domínio tomado manualmente para preservar a integridade do histórico de auditorias.
+- **Validação do comportamento no ambiente real:** rodar `npm install && npm test` localmente no Windows para confirmar que os 60 testes passam — a IA não tem acesso ao ambiente de execução final.
+
+### Registro de economicidade desta fase
+
+#### Camada 1 -- Consumo de IA
+| Atividade | Ferramenta/Modelo | Tokens entrada | Tokens saída | Custo estimado (USD) |
+|-----------|------------------|---------------|-------------|----------------------|
+| Análise do projeto + implementação CRUD MongoDB | Claude Sonnet 4.6 | ~35.000 | ~18.000 | ~$0.3750 |
+| Correção warning Mongoose (`returnDocument`) | Claude Sonnet 4.6 | ~4.000 | ~1.500 | ~$0.0345 |
+| Correção bug `readDocsDirectory` (Windows/case-sensitive) | Claude Sonnet 4.6 | ~8.000 | ~3.500 | ~$0.0765 |
+| **Total da fase** | | **~47.000** | **~23.000** | **~$0.4860** |
+
+> Preços de referência: Claude Sonnet 4.6 ~$3/M tokens entrada, ~$15/M tokens saída.
+
+#### Camada 2 -- Esforço humano real (auto-declarado)
+| Atividade | Membro (perfil) | Tempo com IA (h) | Tempo sem IA (h) | Observações |
+|-----------|----------------|-----------------|-----------------|-------------|
+| Análise do projeto + implementação CRUD MongoDB | Reilson Batista da Fonseca (Júnior) | 1,5h | — | Claude analisou a estrutura e gerou os três métodos novos; revisão e validação dos testes foram manuais. |
+| Correção de warnings e bug no Windows | Reilson Batista da Fonseca (Júnior) | 0,5h | — | Rodou os testes localmente, identificou os problemas e usou a IA para corrigir. |
+| **Total** | | **2,0h** | | |
+
+#### Camada 3 -- Estimativa contrafactual
+| Atividade | Perfil | Tempo estimado sem IA (h) | Salário médio/h (R$) | Custo humano estimado (R$) |
+|-----------|--------|--------------------------|---------------------|---------------------------|
+| Leitura e compreensão do código existente | Júnior | 2,0h | R$ 40 | R$ 80,00 |
+| Implementação de `findById`, `update`, `deleteById` | Júnior | 3,0h | R$ 40 | R$ 120,00 |
+| Adição de índices Mongoose | Júnior | 0,5h | R$ 40 | R$ 20,00 |
+| Escrita dos 12 novos testes | Júnior | 3,0h | R$ 40 | R$ 120,00 |
+| Atualização da documentação (`PERSISTENCE.md`) | Júnior | 1,0h | R$ 40 | R$ 40,00 |
+| Diagnóstico e correção do bug do Windows | Júnior | 1,5h | R$ 40 | R$ 60,00 |
+| **Total da fase** | | **11,0h** | | **R$ 440,00** |
+
+> **Raciocínio contrafactual (CRUD):** sem IA seria necessário: (1) ler a documentação do Mongoose para `findById`, `findOneAndUpdate` e `findOneAndDelete` (~1h), (2) entender o padrão de `ensureConnection` e `getModel` já existente no arquivo (~30min), (3) implementar os três métodos com tratamento de ObjectId inválido (~1,5h). Total: ~3h de um desenvolvedor júnior.
+>
+> **Raciocínio contrafactual (testes):** sem IA seria necessário: (1) estudar o padrão `makeRecord` e a estrutura dos testes existentes (~30min), (2) escrever os 12 casos de teste cobrindo happy path + edge cases de cada método (~2,5h). Total: ~3h.
+
+### Lições aprendidas
+- ✅ **Análise antes de implementar** — pedir à IA para analisar toda a estrutura do projeto antes de qualquer alteração foi essencial: evitou sobrescrever código existente e garantiu que os novos métodos seguissem exatamente o mesmo padrão de estilo, nomenclatura e tratamento de erros já estabelecido.
+- ✅ **Testes locais revelam o que o sandbox não revela** — rodar `npm test` no Windows identificou dois problemas que não apareceram no ambiente de desenvolvimento assistido: o warning do Mongoose e o bug de case-sensitivity no Windows. Sempre validar no ambiente real antes de considerar concluído.
+- ⚠️ **Restrições de rede afetam a validação da IA** — o `mongodb-memory-server` precisava baixar um binário externo; como o sandbox bloqueava o domínio, os testes de persistência só foram validados localmente. Em projetos com dependências de download em tempo de teste, verificar a conectividade do ambiente antes de confiar nos resultados da IA.
+- ✅ **Escopo restrito = resultado previsível** — a instrução explícita de "não faça alterações desnecessárias, preserve a arquitetura atual" fez a IA operar dentro dos limites corretos, sem propor refatorações ou mudar o que já funcionava.
 
 ---
 
@@ -294,8 +355,8 @@ Ainda fora do MVP (escopo §5.5/§5.6 e entregáveis CP3), agora distribuídas e
 | Exposição | ~19.000 | ~9.500 | ~$0.0097 | ~R$ 0,05 |
 | Composição | ~81.000 | ~39.000 | ~$0.0356 | ~R$ 0,18 |
 | Ensaio | ~92.000 | ~103.500 | ~$6.3646 | ~R$ 31,82 |
-| Ressonância | — | — | — | — |
-| **Total (até Ensaio)** | **~192.000** | **~152.000** | **~$6.4099** | **~R$ 32,05** |
+| Ressonância | ~47.000 | ~23.000 | ~$0.4860 | ~R$ 2,43 |
+| **Total** | **~239.000** | **~175.000** | **~$6.8959** | **~R$ 34,48** |
 
 > Nota: o custo da fase Ensaio (US$ 5,71 medido) é majoritariamente leitura de cache de uma
 > sessão longa de pareamento com agente de código — ver detalhamento na seção da fase.
@@ -308,8 +369,8 @@ Ainda fora do MVP (escopo §5.5/§5.6 e entregáveis CP3), agora distribuídas e
 | Exposição | 4,0h | R$ 160,00 |
 | Composição | 15,5h | R$ 1.162,50 |
 | Ensaio | 34,5h | R$ 2.380,00 |
-| Ressonância | — | — |
-| **Total (estimado até Ensaio)** | 54,0h | R$ 3.702,50 |
+| Ressonância | 11,0h | R$ 440,00 |
+| **Total** | 65,0h | R$ 4.142,50 |
 
 #### Análise comparativa (Fase Exposição)
 - **Custo total com IA (R$):** R$ 30,05 (tokens: R$ 0,05 + tempo humano: 0,75h × R$ 40/h = R$ 30,00)
