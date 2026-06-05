@@ -55,15 +55,22 @@ npm install
 
 # 3. Configurar variáveis de ambiente
 cp .env.example .env
-# edite .env com suas chaves (GITHUB_TOKEN, GROQ_API_KEY, GEMINI_API_KEY)
+# edite .env com suas chaves (GITHUB_TOKEN, GROQ_API_KEY, GEMINI_API_KEY, MONGODB_URI)
 
-# 4. Extrair os dados de um PR (gera output/pr-corpus.json)
-npm run poc:diff-reader -- <owner> <repo> <pr-number>
-# ex.: npm run poc:diff-reader -- facebook react 27534
+# 4. Extrair os dados de um PR (comando `fetch`)
+npm run dev fetch -- <owner> <repo> <pr-number> [--output <caminho>]
+# ex.: npm run dev fetch -- facebook react 27534
 
-# 5. Rodar a auditoria sobre o corpus
-npm run audit
-# equivale a: npm run dev ./output/pr-corpus.json ./docs
+# 5. Auditar o corpus extraído (comando `audit`)
+npm run dev audit -- --diff <corpus> --docs <docs-dir> [--output <relatorio.md>]
+# ex.: npm run dev audit -- --diff ./output/pr-corpus.json --docs ./docs --output ./relatorio.md
+
+# 6. Pipeline completo: extrair + auditar em um comando (fetch-and-audit)
+npm run dev fetch-and-audit -- <owner> <repo> <pr-number> --docs <docs-dir> [--output <relatorio.md>]
+# ex.: npm run dev fetch-and-audit -- facebook react 27534 --docs ./docs --output ./relatorio.md
+
+# 7. Consultar histórico de auditorias persistidas (comando `history`)
+npm run dev history -- [--limit N]
 ```
 
 Para build de produção: `npm run build` (gera `./dist`).
@@ -104,9 +111,9 @@ Níveis de criticidade: **Baixa** (cosmético), **Média** (ajustes menores), **
 ## Limitações conhecidas
 
 - **Sem teste end-to-end validado:** as métricas de latência/custo são projeções, ainda não medidas em execução real contra as APIs.
-- **Sem persistência:** não há histórico de auditorias (MongoDB previsto para v0.2).
-- **Sem parsing de argumentos robusto:** a CLI recebe argumentos posicionais simples, sem `commander`/`yargs`.
-- **Sem geração de relatório:** a saída é o JSON `AuditResult` no console; não há relatório Markdown formatado ainda.
+- **Parcialmente resolvido (MongoDB implementado, histórico via CLI):** não há histórico de auditorias.
+- **Resolvido (commander):** sem parsing de argumentos robusto.
+- **Resolvido (ReportGenerator):** sem geração de relatório.
 - **Dependência de APIs gratuitas:** sujeito a rate limits e à descontinuação de modelos (o modelo Groq precisou ser trocado quando o `mixtral-8x7b-32768` foi descontinuado).
 - **Onde a IA pode falhar:** documentação muito genérica confunde a detecção de gaps; diffs que excedem a janela de contexto exigem fragmentação; classificações de criticidade dependem da qualidade do prompt e podem variar entre execuções.
 - **Truncamento:** a documentação é truncada (~8000 caracteres) para controle de custo, podendo perder contexto em docs muito extensas.
