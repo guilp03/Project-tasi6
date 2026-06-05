@@ -118,10 +118,10 @@ export class AnalysisRepository {
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean<any[]>();
-    return docs.map((doc) => ({
-      ...doc,
-      id: (doc._id as mongoose.Types.ObjectId).toString(),
-    }));
+    return docs.map((doc) => {
+      const { _id, ...rest } = doc;
+      return { ...rest, id: (_id as mongoose.Types.ObjectId).toString() };
+    });
   }
 
   /**
@@ -135,9 +135,9 @@ export class AnalysisRepository {
       return null;
     }
     const doc = await AnalysisModel.findById(id).lean<any>();
-    return doc
-      ? { ...doc, id: (doc._id as mongoose.Types.ObjectId).toString() }
-      : null;
+    if (!doc) return null;
+    const { _id, ...rest } = doc;
+    return { ...rest, id: (_id as mongoose.Types.ObjectId).toString() };
   }
 
   /**
@@ -165,9 +165,11 @@ export class AnalysisRepository {
       id,
       { $set: updateFields },
       { returnDocument: 'after', runValidators: true }
-    ).lean<AnalysisRecord>();
+    ).lean<AnalysisRecord & { _id: mongoose.Types.ObjectId }>();
 
-    return doc ?? null;
+    if (!doc) return null;
+    const { _id, ...rest } = doc;
+    return { ...rest, id: _id.toString() };
   }
 
   /**
