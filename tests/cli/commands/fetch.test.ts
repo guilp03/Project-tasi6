@@ -56,11 +56,10 @@ describe("runFetch", () => {
 
   it("extracts PR and saves corpus JSON to the output path", async () => {
     const fs = await import("fs");
-    const writeFileSyncSpy = vi.spyOn(fs, "writeFileSync").mockImplementation(() => {});
 
     await runFetch("acme", "widget", "42", { output: "/tmp/pr-corpus.json" });
 
-    expect(writeFileSyncSpy).toHaveBeenCalledWith(
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
       "/tmp/pr-corpus.json",
       expect.stringContaining('"repository": "acme/widget"'),
       "utf-8"
