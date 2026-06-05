@@ -1,14 +1,14 @@
 {
   "name": "pr-documentation-auditor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ferramenta de auditoria automatizada de documentação em PRs com IA",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "audit": "tsx src/index.ts ./output/pr-corpus.json ./docs",
-    "poc:diff-reader": "tsx apps/poc-diff-reader/poc-diff-reader.ts",
+    "audit": "tsx src/index.ts audit --diff ./output/pr-corpus.json --docs ./docs",
+    "fetch": "tsx src/index.ts fetch",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
