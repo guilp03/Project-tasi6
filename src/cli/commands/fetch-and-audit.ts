@@ -34,46 +34,45 @@ export async function runFetchAndAudit(
     fs.mkdirSync(corpusDir, { recursive: true });
   }
 
-  // Fetch
-  const extractor = new GitHubExtractorService(token);
-  const corpus = await extractor.extract(owner, repo, parseInt(prNumber, 10));
-  fs.writeFileSync(corpusPath, JSON.stringify(corpus, null, 2), "utf-8");
+  import { AnalysisRecord } from "../../services/types.js";
 
-  // Audit
-  const config = loadConfig();
-  const llmService = new LLMIntegrationService(config.geminiApiKey, config.groqApiKey);
-  const record = await llmService.analyzePR(corpusPath, options.docs);
+  let record: AnalysisRecord;
+  try {
+    const extractor = new GitHubExtractorService(token);
+    const corpus = await extractor.extract(owner, repo, parseInt(prNumber, 10));
+    fs.writeFileSync(corpusPath, JSON.stringify(corpus, null, 2), "utf-8");
 
-  // Report
-  const generator = new ReportGenerator();
-  const markdown = generator.generate(record);
+    const config = loadConfig();
+    const llmService = new LLMIntegrationService(config.geminiApiKey, config.groqApiKey);
+    record = await llmService.analyzePR(corpusPath, options.docs);
 
-  if (options.output) {
-    fs.writeFileSync(options.output, markdown, "utf-8");
-    console.log(`[Arquivo] Relatório salvo em ${options.output}`);
-  }
+    const generator = new ReportGenerator();
+    const markdown = generator.generate(record);
 
-  // Persist
-  const mongoUri = getMongoUri();
-  if (mongoUri) {
-    try {
-      const repo = new AnalysisRepository();
-      const id = await repo.save(record);
-      console.log(`[MongoDB] Registro salvo com id: ${id}`);
-    } catch (e) {
-      console.warn(
-        "[MongoDB] Falha na persistência:",
-        e instanceof Error ? e.message : String(e)
-      );
+    if (options.output) {
+      fs.writeFileSync(options.output, markdown, "utf-8");
+      console.log(`[Arquivo] Relatório salvo em ${options.output}`);
+    }
+
+    const mongoUri = getMongoUri();
+    if (mongoUri) {
+      try {
+        const repo = new AnalysisRepository();
+        const id = await repo.save(record);
+        console.log(`[MongoDB] Registro salvo com id: ${id}`);
+      } catch (e) {
+        console.warn(
+          "[MongoDB] Falha na persistência:",
+          e instanceof Error ? e.message : String(e)
+        );
+      }
+    }
+  } finally {
+    if (!options.keepCorpus && fs.existsSync(corpusPath)) {
+      fs.unlinkSync(corpusPath);
     }
   }
 
-  // Cleanup
-  if (!options.keepCorpus && fs.existsSync(corpusPath)) {
-    fs.unlinkSync(corpusPath);
-  }
-
-  // Summary
   console.log(`[Status] ${record.analysis.status} | Criticidade: ${record.analysis.criticality}`);
   console.log(`[Gaps] ${record.analysis.documentationGaps.length} gaps encontrados`);
 }
