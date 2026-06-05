@@ -1,7 +1,7 @@
 // tests/services/ReportGenerator.test.ts
 import { describe, it, expect } from "vitest";
-import { ReportGenerator } from "../../src/services/ReportGenerator";
-import { AnalysisRecord } from "../../src/services/types";
+import { ReportGenerator } from "../../src/services/ReportGenerator.js";
+import { AnalysisRecord } from "../../src/services/types.js";
 
 describe("ReportGenerator", () => {
   const mockRecord: AnalysisRecord = {
