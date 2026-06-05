@@ -64,6 +64,7 @@ export interface TokenUsage {
  * either side re-deriving status/recommendations.
  */
 export interface AnalysisRecord {
+  id?: string;
   repository: string;
   pullRequest: {
     id: string;

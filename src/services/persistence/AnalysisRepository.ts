@@ -117,8 +117,11 @@ export class AnalysisRepository {
     const docs = await AnalysisModel.find()
       .sort({ createdAt: -1 })
       .limit(limit)
-      .lean<AnalysisRecord[]>();
-    return docs;
+      .lean<any[]>();
+    return docs.map((doc) => ({
+      ...doc,
+      id: (doc._id as mongoose.Types.ObjectId).toString(),
+    }));
   }
 
   /**
@@ -131,8 +134,10 @@ export class AnalysisRepository {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return null;
     }
-    const doc = await AnalysisModel.findById(id).lean<AnalysisRecord>();
-    return doc ?? null;
+    const doc = await AnalysisModel.findById(id).lean<any>();
+    return doc
+      ? { ...doc, id: (doc._id as mongoose.Types.ObjectId).toString() }
+      : null;
   }
 
   /**
