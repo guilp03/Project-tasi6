@@ -14,6 +14,10 @@ export async function runHistory(options: {
   }
 
   const limit = parseInt(options.limit, 10);
+  if (isNaN(limit) || limit <= 0) {
+    console.error("--limit deve ser um número positivo.");
+    process.exit(1);
+  }
   const repo = new AnalysisRepository();
   let records: AnalysisRecord[] = [];
   try {

@@ -9,6 +9,8 @@
     "dev": "tsx src/index.ts",
     "audit": "tsx src/index.ts audit --diff ./output/pr-corpus.json --docs ./docs",
     "fetch": "tsx src/index.ts fetch",
+    "fetch-and-audit": "tsx src/index.ts fetch-and-audit",
+    "history": "tsx src/index.ts history",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

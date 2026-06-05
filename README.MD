@@ -27,7 +27,7 @@ A aplicação é uma ferramenta de CI/CD acionada via linha de comando que:
 
 Monólito CLI em TypeScript, sem servidor, projetado para rodar dentro de um pipeline de CI/CD:
 
-- **`apps/poc-diff-reader/`** — extrator de PR (GitHub API → `pr-corpus.json`).
+- **`src/services/GitHubExtractorService.ts`** — extrator de PR (GitHub API → `pr-corpus.json`).
 - **`src/services/LLMIntegrationService.ts`** — núcleo: lê o corpus, decide o roteamento (Groq vs Gemini), chama a API via `fetch` nativo e faz parse seguro do JSON.
 - **`src/services/types.ts`** — contratos (`AuditResult`, `PRCorpus`, `RoutingDecision`).
 - **`src/utils/prompts.ts`** — catálogo de prompts de auditoria.

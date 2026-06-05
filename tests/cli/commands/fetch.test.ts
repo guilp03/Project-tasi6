@@ -65,7 +65,7 @@ describe("runFetch", () => {
       "utf-8"
     );
     expect(console.log).toHaveBeenCalledWith(
-      "✅ Corpus salvo em: /tmp/pr-corpus.json"
+      "[OK] Corpus salvo em: /tmp/pr-corpus.json"
     );
   });
 

@@ -30,7 +30,7 @@ export async function runFetch(
     "utf-8"
   );
 
-  console.log(`✅ Corpus salvo em: ${options.output}`);
+  console.log(`[OK] Corpus salvo em: ${options.output}`);
 }
 
 export function registerFetchCommand(program: Command): void {
