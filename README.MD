@@ -43,6 +43,7 @@ Decisões arquiteturais completas (C4 Model + ADR-001 a ADR-005) em **[docs/Arqu
   - `GITHUB_TOKEN` — token para o extrator de PR ([gerar aqui](https://github.com/settings/tokens))
   - `GROQ_API_KEY` — chave Groq, tier gratuito ([console.groq.com](https://console.groq.com))
   - `GEMINI_API_KEY` — chave Gemini, gratuita ([aistudio.google.com](https://aistudio.google.com/app/apikey))
+  - `MONGODB_URI` — URI de conexão MongoDB (opcional, para persistência de histórico)
 
 ## Instalação e Execução
 
@@ -77,13 +78,21 @@ Para build de produção: `npm run build` (gera `./dist`).
 
 ## Uso
 
-**Comando:**
+**Comandos disponíveis:**
 
 ```bash
-npm run dev ./output/pr-corpus.json ./docs
-```
+# Extrair PR do GitHub
+npm run dev fetch -- <owner> <repo> <pr-number> [--output <path>]
 
-**Entrada:** um `pr-corpus.json` (gerado pelo extrator) e o diretório de documentação a ser auditado.
+# Auditar corpus existente
+npm run dev audit -- --diff <corpus> --docs <docs-dir> [--output <relatorio.md>]
+
+# Pipeline: extrair + auditar
+npm run dev fetch-and-audit -- <owner> <repo> <pr> --docs <dir> [--output <md>]
+
+# Consultar histórico
+npm run dev history -- [--limit N]
+```
 
 **Saída** (exemplo real do formato `AuditResult`):
 
@@ -111,12 +120,15 @@ Níveis de criticidade: **Baixa** (cosmético), **Média** (ajustes menores), **
 ## Limitações conhecidas
 
 - **Sem teste end-to-end validado:** as métricas de latência/custo são projeções, ainda não medidas em execução real contra as APIs.
-- **Parcialmente resolvido (MongoDB implementado, histórico via CLI):** não há histórico de auditorias.
-- **Resolvido (commander):** sem parsing de argumentos robusto.
-- **Resolvido (ReportGenerator):** sem geração de relatório.
 - **Dependência de APIs gratuitas:** sujeito a rate limits e à descontinuação de modelos (o modelo Groq precisou ser trocado quando o `mixtral-8x7b-32768` foi descontinuado).
 - **Onde a IA pode falhar:** documentação muito genérica confunde a detecção de gaps; diffs que excedem a janela de contexto exigem fragmentação; classificações de criticidade dependem da qualidade do prompt e podem variar entre execuções.
 - **Truncamento:** a documentação é truncada (~8000 caracteres) para controle de custo, podendo perder contexto em docs muito extensas.
+
+### ✅ Resolvido em v0.2.0
+
+- **Histórico de auditorias** — histórico de auditorias via comando `history` e persistência MongoDB.
+- **Parsing de argumentos robusto** — substituído por Commander.js.
+- **Geração de relatório** — ReportGenerator integrados na saída `--output`.
 
 ## Equipe
 
