@@ -1,3 +1,4 @@
+import { AnalysisRecord } from "../../services/types.js";
 import { Command } from "commander";
 import * as fs from "fs";
 import * as os from "os";
@@ -33,8 +34,6 @@ export async function runFetchAndAudit(
   if (!fs.existsSync(corpusDir)) {
     fs.mkdirSync(corpusDir, { recursive: true });
   }
-
-  import { AnalysisRecord } from "../../services/types.js";
 
   let record: AnalysisRecord;
   try {
