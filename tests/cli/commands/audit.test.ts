@@ -1,13 +1,13 @@
 // tests/cli/commands/audit.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { runAudit } from "../../../src/cli/commands/audit";
+import { runAudit } from "../../../src/cli/commands/audit.js";
 
 vi.mock("fs", () => ({
   existsSync: vi.fn().mockReturnValue(true),
   writeFileSync: vi.fn().mockImplementation(() => {}),
 }));
 
-vi.mock("../../../src/services/LLMIntegrationService", () => ({
+vi.mock("../../../src/services/LLMIntegrationService.js", () => ({
   LLMIntegrationService: vi.fn().mockImplementation(function(this: any) {
     this.analyzePR = vi.fn().mockResolvedValue({
       repository: "acme/widget",
@@ -39,19 +39,19 @@ vi.mock("../../../src/services/LLMIntegrationService", () => ({
   }),
 }));
 
-vi.mock("../../../src/services/ReportGenerator", () => ({
+vi.mock("../../../src/services/ReportGenerator.js", () => ({
   ReportGenerator: vi.fn().mockImplementation(function(this: any) {
     this.generate = vi.fn().mockReturnValue("# Markdown report");
   }),
 }));
 
-vi.mock("../../../src/services/persistence/AnalysisRepository", () => ({
+vi.mock("../../../src/services/persistence/AnalysisRepository.js", () => ({
   AnalysisRepository: vi.fn().mockImplementation(function(this: any) {
     this.save = vi.fn().mockResolvedValue("647a2f...e1b3");
   }),
 }));
 
-vi.mock("../../../src/services/config", () => ({
+vi.mock("../../../src/services/config.js", () => ({
   loadConfig: vi.fn().mockReturnValue({
     geminiApiKey: "gemini-key",
     groqApiKey: "groq-key",
@@ -109,7 +109,7 @@ describe("runAudit", () => {
 
   it("exits with error when diff file does not exist", async () => {
     const fs = await import("fs");
-    (fs.existsSync as ReturnType<typeof vi.fn>).mockImplementation((p: string) => p !== "/tmp/corpus.json");
+    const existsSpy = vi.spyOn(fs, "existsSync").mockImplementation((p: string) => p !== "/tmp/corpus.json");
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as any);
 
     await runAudit({ diff: "/tmp/corpus.json", docs: "/tmp/docs" });
@@ -118,11 +118,14 @@ describe("runAudit", () => {
       "Arquivo não encontrado: /tmp/corpus.json"
     );
     expect(exitSpy).toHaveBeenCalledWith(1);
+
+    existsSpy.mockRestore();
+    exitSpy.mockRestore();
   });
 
   it("exits with error when docs directory does not exist", async () => {
     const fs = await import("fs");
-    (fs.existsSync as ReturnType<typeof vi.fn>).mockImplementation((p: string) => p !== "/tmp/docs");
+    const existsSpy = vi.spyOn(fs, "existsSync").mockImplementation((p: string) => p !== "/tmp/docs");
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as any);
 
     await runAudit({ diff: "/tmp/corpus.json", docs: "/tmp/docs" });
@@ -131,5 +134,8 @@ describe("runAudit", () => {
       "Diretório não encontrado: /tmp/docs"
     );
     expect(exitSpy).toHaveBeenCalledWith(1);
+
+    existsSpy.mockRestore();
+    exitSpy.mockRestore();
   });
 });
