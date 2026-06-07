@@ -336,6 +336,94 @@ Ainda fora do MVP (escopo §5.5/§5.6 e entregáveis CP3), agora distribuídas e
 
 ---
 
+## Fase: Interlídio (Aulas 33+)
+
+> **Interlídio:** trecho musical que conecta dois movimentos, reforçando o tema antes da variação final.
+
+Nesta fase, o projeto transitou de v0.1.0 (MVP com CLI posicional e POC separada) para v0.2.0 (CLI profissional com subcomandos, relatório Markdown, histórico persistido e extrator promovido a serviço). Todo o trabalho foi executado com um agente de código (OpenCode + GLM-5.1) usando workflow de spec, plano e execução paralela.
+
+### Onde a IA ajudou
+
+- **Brainstorming e design da arquitetura CLI:** o agente analisou o repositório completo e propôs três abordagens para atender os requisitos pendentes (RF-005, RF-007, RF-008). A Abordagem 3 (arquitetura de comandos com `commander`) foi escolhida por ser escalável e profissional, gerando um spec aprovado antes de qualquer linha de código.
+- **Planejamento em 13 tarefas:** a IA quebrou o spec em 13 tarefas executáveis com ordem de dependência, cada uma com critérios de verificação. O plano está documentado em `docs/superpowers/plans/2026-06-05-cli-commands-markdown-history.md`.
+- **Execução TDD (subagentes paralelos):** cada tarefa foi executada por um subagente dedicado, com testes escritos antes da implementação. `ReportGenerator` e `GitHubExtractorService` foram criados via TDD puro — testes definindo o contrato, implementação fazendo-os passar. Resultado: 77 testes em 12 arquivos, build limpo.
+- **Promoção do extrator de POC para serviço:** a POC `apps/poc-diff-reader/` foi refatorada para `src/services/GitHubExtractorService.ts`, com classificação de arquivos, detecção de linguagem e sumário de mudanças — sem modificar o contrato `PRCorpus`.
+- **Comandos CLI (audit, fetch, fetch-and-audit, history):** quatro subcomandos criados via `commander`, cada um com validação de entrada, integração com serviços existentes e persistência condicional em MongoDB.
+- **Refatoração do entry point:** `index.ts` reduziu de ~50 linhas de lógica posicional para 6 linhas (thin dispatcher). `parser.ts` registra os subcomandos.
+- **ReportGenerator:** gera relatórios Markdown estruturados a partir de `AnalysisRecord`, integrado ao comando `audit` via flag `--output`.
+- **Atualização da documentação:** `IMPLEMENTATION.md` foi reescrito para v0.2.0 (removendo referências à POC e args posicionais); `Arquitetura.MD` recebeu ADR-006 (Commander.js) e ADR-007 (promoção do extrator), diagrama de componentes atualizado e correção Python→Node.js; `POC_DIFF_READER_USAGE.md` e `IMPLEMENTATION_SUMMARY.md` foram removidos por obsolescência.
+- **Spec e plano rastreáveis:** os documentos de spec e plano ficam em `docs/superpowers/`, permitindo auditoria do processo de design antes da implementação.
+
+### Onde a IA não ajudou (ou atrapalhou)
+
+- **Nenhum bug crítico nesta fase:** ao contrário da fase Ensaio (import quebrado, modelo Groq descontinuado, build falho), o fluxo de spec→plano→TDD evitou que código quebrado chegasse ao commit.
+- **Spec excessivamente detalhado para tarefas simples:** a spec de documentação (remover 2 arquivos, atualizar 2 outros) era mais longa do que a execução em si. Útil para rastreabilidade, mas overkill para mudanças puramente textuais.
+- **Subagentes não compartilham estado:** cada subagente parte do zero, sem acesso ao que os outros já implementaram. Isso obligou a ordenação estrita de tarefas (tipos antes de serviços, serviços antes de comandos) e gerou dependências manuais no plano.
+
+### Prompts notáveis desta fase
+
+- PROMPT-I1 (brainstorming): *"Quais requisitos funcionais pendentes (RF-005, RF-007, RF-008) precisam ser implementados? Proponha abordagens."* — gerou 3 alternativas, spec detalhado e escolha justificada.
+- PROMPT-I2 (planejamento): *"Crie um plano de implementação com base no spec aprovado."* — 13 tarefas com dependências, cada uma com critérios de verificação.
+- PROMPT-I3 (TDD para ReportGenerator): *"Implemente a classe ReportGenerator seguindo TDD: escreva os testes primeiro, depois a implementação."* — 6 testes definiram o contrato antes de qualquer código de produção.
+- PROMPT-I4 (TDD para GitHubExtractorService): *"Promova o extrator de POC para serviço oficial, TDD."* — tests de classificação, detecção de linguagem e extração de PR foram escritos antes da implementação.
+- PROMPT-I5 (documentação): *"Atualize IMPLEMENTATION.md e Arquitetura.MD para v0.2.0; remova POC_DIFF_READER_USAGE.md e IMPLEMENTATION_SUMMARY.md."* — spec explícito evitou esquecimentos.
+
+### Decisões tomadas sem IA
+
+- **Escolha da Abordagem 3 (Commander):** o agente propôs três alternativas; a equipe escolheu a arquitetura de subcomandos por escalabilidade e profissionalismo.
+- **Opção B para relatório (resumo no terminal + Markdown em arquivo):** descartou a opção A (Markdown apenas no terminal) por ser menos útil em CI/CD.
+- **Remoção da POC:** decisão de excluir `apps/poc-diff-reader/` por completo em vez de mantê-lo como referência, já que o serviço promovido cobre toda a funcionalidade.
+- **Critério de parada:** a equipe decidiu parar após a documentação estar atualizada, sem adicionar GitHub Actions ou fallback LLM neste ciclo.
+
+### Registro de economicidade desta fase
+
+#### Camada 1 -- Consumo de IA
+| Atividade | Ferramenta/Modelo | Tokens entrada | Tokens saída | Custo estimado (USD) |
+|-----------|------------------|---------------|-------------|----------------------|
+| Brainstorming e spec de design | GLM-5.1 (OpenCode) | ~45.000 | ~18.000 | ~$0.05 |
+| Planejamento (13 tarefas) | GLM-5.1 (OpenCode) | ~12.000 | ~5.000 | ~$0.01 |
+| TDD ReportGenerator (6 testes + impl) | GLM-5.1 (OpenCode) | ~20.000 | ~10.000 | ~$0.03 |
+| TDD GitHubExtractorService (7 testes + impl) | GLM-5.1 (OpenCode) | ~25.000 | ~12.000 | ~$0.04 |
+| Comandos CLI (audit, fetch, fetch-and-audit, history) | GLM-5.1 (OpenCode) | ~35.000 | ~18.000 | ~$0.05 |
+| Refatoração (parser.ts, index.ts, package.json) | GLM-5.1 (OpenCode) | ~15.000 | ~8.000 | ~$0.02 |
+| Atualização da documentação (IMPLEMENTATION, Arquitetura, remoções) | GLM-5.1 (OpenCode) | ~30.000 | ~15.000 | ~$0.04 |
+| **Total da fase** | | **~182.000** | **~86.000** | **~$0.24** |
+
+> Estimativa conservadora. O modelo GLM-5.1 foi usado via OpenCode com contexto de todo o repositório. Tokens de entrada incluem leitura de arquivos-fonte, testes, specs e planos.
+
+#### Camada 2 -- Esforço humano real (auto-declarado)
+| Atividade | Membro (perfil) | Tempo com IA (h) | Tempo sem IA (h) | Observações |
+|-----------|----------------|-----------------|-----------------|-------------|
+| Revisão do spec e escolha da abordagem | Guilherme (pleno) | 0,5h | — | Leitura e aprovação do spec; decisão pela Abordagem 3. |
+| Revisão do plano de 13 tarefas | Guilherme (pleno) | 0,25h | — | Validação de dependências e ordem. |
+| Revisão de código (cada subagente) | Guilherme (pleno) | 1,0h | — | Revisão dos 4 comandos, 2 serviços, refatoração e testes. |
+| Revisão da documentação | Guilherme (pleno) | 0,5h | — | Verificação de IMPLEMENTATION.md e Arquitetura.MD. |
+| **Total** | | **2,25h** | | |
+
+#### Camada 3 -- Estimativa contrafactual
+| Atividade | Perfil | Tempo estimado sem IA (h) | Salário médio/h (R$) | Custo humano estimado (R$) |
+|-----------|--------|--------------------------|---------------------|---------------------------|
+| Design de arquitetura CLI (pesquisa + decisão) | Pleno | 3,0h | R$ 75 | R$ 225,00 |
+| Implementação ReportGenerator + TDD | Pleno | 4,0h | R$ 75 | R$ 300,00 |
+| Promoção do extrator POC → serviço + TDD | Pleno | 5,0h | R$ 75 | R$ 375,00 |
+| 4 comandos CLI + integração MongoDB | Pleno | 6,0h | R$ 75 | R$ 450,00 |
+| Refatoração entry point + parser | Pleno | 2,0h | R$ 75 | R$ 150,00 |
+| Atualização de documentação (4 arquivos) | Júnior | 3,0h | R$ 40 | R$ 120,00 |
+| **Total da fase** | | **23,0h** | | **R$ 1.620,00** |
+
+> **Raciocínio contrafactual (CLI com Commander):** sem IA seria necessário: (1) estudar a API do Commander.js e padrões de CLI (~1h), (2) modelar os 4 subcomandos com tratamento de erros (~3h), (3) integrar com os serviços existentes e MongoDB (~2h). Total: ~6h de um Dev pleno.
+>
+> **Raciocínio contrafactual (promoção do extrator):** sem IA: (1) entender a POC existente (~30min), (2) redesenhar como serviço com classificação e detecção (~1h), (3) implementar com TDD (~2,5h), (4) integrar com o comando fetch (~1,5h). Total: ~5h.
+
+### Lições aprendidas
+- ✅ **Spec antes de código elimina retrabalho** — o fluxo brainstorming→spec→plano→TDD produziu código que passou de primeira em 77/77 testes, sem o bug de import ou build quebrado da fase Ensaio.
+- ✅ **TDD com subagente funciona** — cada serviço foi implementado com testes escritos antes; quando um teste falhava, o subagente corrigia e seguia. Zero bugs de integração.
+- ✅ **Documentação como spec evita esquecimento** — a spec de documentação listava explicitamente "remover POC_DIFF_READER_USAGE.md" e "atualizar Arquitetura.MD", evitando que arquivos obsoletos fossem esquecidos.
+- ⚠️ **Subagentes precisam de dependências explícitas** — sem o plano de 13 tarefas com ordem, um subagente poderia tentar implementar um comando antes do serviço que ele importa. O plano resolveu isso, mas é um ponto de atenção para equipes que não usam workflow estruturado.
+- ✅ **Promoção de POC para serviço é padrão recorrente** — o fluxo "copiar POC → classificar → refatorar para interface → TDD → integrar na CLI" serve como template para futuras promoções.
+
+---
+
 ## Reflexão final
 
 ### Métricas de uso de IA (estimadas)
@@ -356,7 +444,8 @@ Ainda fora do MVP (escopo §5.5/§5.6 e entregáveis CP3), agora distribuídas e
 | Composição | ~81.000 | ~39.000 | ~$0.0356 | ~R$ 0,18 |
 | Ensaio | ~92.000 | ~103.500 | ~$6.3646 | ~R$ 31,82 |
 | Ressonância | ~47.000 | ~23.000 | ~$0.4860 | ~R$ 2,43 |
-| **Total** | **~239.000** | **~175.000** | **~$6.8959** | **~R$ 34,48** |
+| Interlídio | ~182.000 | ~86.000 | ~$0.24 | ~R$ 1,20 |
+| **Total** | **~421.000** | **~261.000** | **~$7.14** | **~R$ 35,68** |
 
 > Nota: o custo da fase Ensaio (US$ 5,71 medido) é majoritariamente leitura de cache de uma
 > sessão longa de pareamento com agente de código — ver detalhamento na seção da fase.
@@ -370,7 +459,8 @@ Ainda fora do MVP (escopo §5.5/§5.6 e entregáveis CP3), agora distribuídas e
 | Composição | 15,5h | R$ 1.162,50 |
 | Ensaio | 34,5h | R$ 2.380,00 |
 | Ressonância | 11,0h | R$ 440,00 |
-| **Total** | 65,0h | R$ 4.142,50 |
+| Interlídio | 23,0h | R$ 1.620,00 |
+| **Total** | 88,0h | R$ 5.762,50 |
 
 #### Análise comparativa (Fase Exposição)
 - **Custo total com IA (R$):** R$ 30,05 (tokens: R$ 0,05 + tempo humano: 0,75h × R$ 40/h = R$ 30,00)
@@ -378,6 +468,13 @@ Ainda fora do MVP (escopo §5.5/§5.6 e entregáveis CP3), agora distribuídas e
 - **Razão de economicidade:** 5,33x (sem IA é 5,33× mais caro)
 - **Saving estimado (R$):** R$ 129,95
 - **Saving estimado (%):** 81,25%
+
+#### Análise comparativa (Fase Interlídio)
+- **Custo total com IA (R$):** R$ 172,50 (tokens: R$ 1,20 + tempo humano: 2,25h × R$ 75/h = R$ 168,75)
+- **Custo total estimado sem IA (R$):** R$ 1.620,00
+- **Razão de economicidade:** 9,39x (sem IA é 9,39× mais caro)
+- **Saving estimado (R$):** R$ 1.447,50
+- **Saving estimado (%):** 89,35%
 
 > **Atenção às limitações desta análise:**
 > (1) O contrafactual é uma estimativa subjetiva -- há viés de retrospecto.

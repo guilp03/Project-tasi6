@@ -7,6 +7,7 @@
 |--------|------|-------|-----------|
 
 | 1.0 | 14/05/2026 | Guilherme Pereira, Alexandre Moreno, Stela Nascimento, Reilson Fonseca | Versão inicial com C4 Model Nível 1 |
+| 0.2.0 | 07/06/2026 | Guilherme Pereira | v0.2.0 — Commander.js CLI, GitHubExtractorService, Gemini fallback |
 
 ---
 
@@ -50,7 +51,7 @@
 
 ┌─────────────────────────────────────────────────────────────────┐
 │            [Serviço Externo] LLM Provider                       │
-│  (Claude API, OpenAI GPT-4, etc)                                │
+│  (Groq API, Google Gemini API)                                  │
 │                                                                  │
 │  - Analisa mudanças estruturalmente (AST, diffs)                │
 │  - Compara com documentação existente                           │
@@ -74,7 +75,7 @@
 
 **Sistemas Externos:**
 - **GitHub:** Dispara webhooks quando PR é aberta/atualizada. Sistema onde o resultado (comentário) fica visível. Fonte de verdade para código, diffs e documentação.
-- **LLM Provider (Claude, GPT-4, etc):** Realiza a análise inteligente de mudanças vs documentação. Detecta gaps estruturalmente e classifica severidade.
+- **LLM Provider (Groq, Gemini):** Realiza a análise inteligente de mudanças vs documentação. Detecta gaps estruturalmente e classifica severidade.
 
 **Papel dos LLMs:**
 - Analisar diffs de código (mudanças em APIs, schemas, segurança, features)
@@ -88,7 +89,7 @@
 
 ## Nível 2 -- Contêineres (Container Diagram)
 
-> Decomposição do sistema: Aplicação Python acionada por CI/CD, armazenamento opcional para histórico, e integrações externas.
+> Decomposição do sistema: Aplicação Node.js acionada por CI/CD, armazenamento opcional para histórico, e integrações externas.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
@@ -101,8 +102,8 @@
                              ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                                                                             │
-│  [Contêiner] Python Application (CLI)                                      │
-│  Execução efêmera via GitHub Actions (runner)                              │
+│  [Contêiner] Node.js Application (CLI)                                      │
+│  TypeScript + Commander.js — execução efêmera via GitHub Actions (runner)   │
 │                                                                             │
 │  ┌──────────────────────────────────────────────────────────────────┐     │
 │  │ Entry Point / Main                                               │     │
@@ -123,7 +124,7 @@
 │  ┌──────────────────────────────────────────────────────────────────┐     │
 │  │ LLM Integration Module                                           │     │
 │  │ - Monta prompt (diff + docs + contexto)                          │     │
-│  │ - Chama LLM Provider (Claude, GPT-4)                             │     │
+│  │ - Roteia para Groq ou Gemini (ADR-005)                          │     │
 │  │ - Parse + estrutura resposta                                     │     │
 │  │ - Tratamento de erros / retry com backoff                        │     │
 │  └──────────────────────────────────────────────────────────────────┘     │
@@ -149,7 +150,7 @@
 
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ [Serviço Externo] LLM Provider API                                         │
-│ (Claude API, OpenAI GPT-4, etc)                                            │
+│ (Groq API, Google Gemini API)                                               │
 │ - Chamadas síncronas com timeout                                           │
 │ - Retry com exponential backoff                                            │
 │ - Fallback para modelo menor se quota exceder                              │
@@ -160,63 +161,53 @@
 
 | Contêiner | Tecnologia | Responsabilidade |
 |-----------|-----------|-----------------|
-| **Node.js Application** | Node.js 20 + TypeScript (CLI) | Parse diff, busca docs, chama LLM, gera relatório, comenta na PR, persiste análise |
+| **Node.js Application** | Node.js 20 + TypeScript + Commander.js (CLI) | Subcomandos: audit, fetch, fetch-and-audit, history. Parse diff, busca docs, chama LLM, gera relatório, persiste análise |
 | **MongoDB** | NoSQL Document Database | Armazena análises completas em JSON: resultado, diff, gaps, metadata, timestamp |
 | **GitHub API** | REST API v3 | Busca contexto de PR (files, diffs), publica comentário com resultado |
-| **LLM Provider** | Groq (Mixtral) + Claude (fallback) | Groq: análise rápida de gaps; Claude: validação em casos críticos/segurança |
+| **LLM Provider** | Groq (Llama 3.3 70B) + Gemini (fallback) | Groq: análise rápida de gaps; Gemini: validação em casos críticos/segurança |
 
 ---
 
 ## Nível 3 -- Componentes (Component Diagram)
 
-> Visão geral dos componentes da Node.js Application. Detalhes refinados durante implementação.
+> Visão geral dos componentes da Node.js Application (v0.2.0). Detalhes refinados durante implementação.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                    Node.js Application (TypeScript)                      │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │ [1] Main Entry Point                                             │   │
-│  │  - Lê variáveis de ambiente                                      │   │
-│  │  - Orquestra o fluxo de análise                                  │   │
+│  │ [1] Entry Point / CLI Dispatcher                                 │   │
+│  │  src/index.ts → createCLI().parse()                              │   │
+│  │  - Rotas: audit, fetch, fetch-and-audit, history                 │   │
 │  └──────────────────────────────────────────────────────────────────┘   │
 │                            │                                             │
-│                            ▼                                             │
+│              ┌─────────────┴─────────────┐                               │
+│              ▼                           ▼                               │
+│  ┌──────────────────────────────────┐  ┌────────────────────────────┐  │
+│  │ [2] GitHubExtractorService       │  │ [6] Commander CLI          │  │
+│  │  src/services/GitHubExtractor    │  │  src/cli/parser.ts         │  │
+│  │  - Extrai dados de PRs          │  │  - Subcomandos register    │  │
+│  │  - Busca diffs e metadata        │  │  - Options & args parsing  │  │
+│  └──────────────────────────────────┘  └────────────────────────────┘  │
+│              │                                                         │
+│              ▼                                                         │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │ [2] GitHub Context Fetcher                                       │   │
-│  │  - Busca PR details e arquivos modificados                       │   │
-│  │  - Recupera diffs e documentação relevante                       │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│                            │                                             │
-│                            ▼                                             │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │ [3] Documentation Analyzer                                       │   │
-│  │  - Parse e classifica mudanças (tipo, severidade)                │   │
-│  │  - Busca documentação relevante                                  │   │
-│  │  - Monta contexto para LLM                                       │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│                            │                                             │
-│                            ▼                                             │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │ [4] LLM Integration                                              │   │
-│  │  - Monta prompt (Groq como default, Claude fallback)             │   │
-│  │  - Chama LLM com retry/fallback                                  │   │
+│  │ [3] LLM Integration                                              │   │
+│  │  src/services/LLMIntegrationService.ts                           │   │
+│  │  - Roteia para Groq (default) ou Gemini (fallback) (ADR-005)    │   │
+│  │  - Retry com exponential backoff                                  │   │
 │  │  - Parse e valida resposta                                       │   │
 │  └──────────────────────────────────────────────────────────────────┘   │
 │                            │                                             │
-│                            ▼                                             │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │ [5] Report Generator + GitHub Commenter                          │   │
-│  │  - Formata resultado em markdown                                 │   │
-│  │  - Comenta na PR via GitHub API                                  │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│                            │                                             │
-│                            ▼                                             │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │ [6] MongoDB Persistence                                          │   │
-│  │  - Armazena documento de análise completa                        │   │
-│  │  - Schema: PR info + diff + gaps + metadata + timestamp          │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
+│              ┌─────────────┴─────────────┐                               │
+│              ▼                           ▼                               │
+│  ┌──────────────────────────────────┐  ┌────────────────────────────┐  │
+│  │ [4] ReportGenerator              │  │ [5] AnalysisRepository     │  │
+│  │  src/services/ReportGenerator.ts │  │  src/services/persistence/ │  │
+│  │  - Gera relatório Markdown       │  │  - Persistência MongoDB    │  │
+│  │  - Formata gaps e severidade     │  │  - Histórico de análises   │  │
+│  └──────────────────────────────────┘  └────────────────────────────┘  │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -225,26 +216,26 @@
 
 | # | Componente | Responsabilidade |
 |---|-----------|-----------------|
-| 1 | **Entry Point** | Orquestra fluxo, lê env vars |
-| 2 | **GitHub Fetcher** | Busca PR, diffs, docs |
-| 3 | **Doc Analyzer** | Parse, classifica, busca docs |
-| 4 | **LLM Integration** | Chama Groq/Claude, parse resposta |
-| 5 | **Report + Commenter** | Formata, comenta PR |
-| 6 | **MongoDB Persistence** | Armazena documento de análise |
+| 1 | **Entry Point / CLI Dispatcher** | `src/index.ts` → `createCLI().parse()`, orquestra subcomandos |
+| 2 | **GitHubExtractorService** | Extrai dados de PRs da GitHub API (diffs, metadata) |
+| 3 | **LLM Integration** | Roteia para Groq (default) ou Gemini (fallback) conforme ADR-005 |
+| 4 | **ReportGenerator** | Gera relatórios Markdown com gaps e severidade |
+| 5 | **AnalysisRepository** | Persistência MongoDB — histórico de análises |
+| 6 | **Commander CLI** | Subcomandos: audit, fetch, fetch-and-audit, history |
 
 **Nota:** Componentes internos refinados durante desenvolvimento (Design Emergente).
 
 ---
 
-## LLM Provider: Groq + Fallback Claude
+## LLM Provider: Groq + Fallback Gemini
 
-**Seleção:** Groq Mixtral como default, Claude como fallback para casos críticos/segurança.
+**Seleção:** Groq (Llama 3.3 70B) como default, Gemini como fallback para casos críticos/segurança.
 
 **Estratégia:**
 ```typescript
 const selectModel = (diffSize: number, hasSecurity: boolean) => {
-  if (hasSecurity) return "claude-3-5-sonnet"; // Segurança = alta acurácia
-  if (diffSize > 30000) return "groq"; // Groove com truncate
+  if (hasSecurity) return "gemini-2.5-flash"; // Segurança = fallback robusto
+  if (diffSize > 30000) return "groq"; // Groq com truncate
   return "groq"; // Default: rápido + barato
 };
 ```
@@ -257,10 +248,15 @@ const selectModel = (diffSize: number, hasSecurity: boolean) => {
 
 **Env vars (GitHub secrets):**
 - `GITHUB_TOKEN` — Injetado automaticamente (seguro, temporário)
-- `LLM_API_KEY` — Groq (default) ou Claude (fallback)
-- `MONGODB_URI` — mongodb+srv://user:pass@cluster/db_name
+- `GROQ_API_KEY` — Groq (default)
+- `GEMINI_API_KEY` — Gemini (fallback)
+- `MONGODB_URI` — mongodb+srv://user:pass@cluster/db_name (opcional)
 
-**Workflow:** Node 20, npm ci, então `npm run audit`
+**Comandos disponíveis:**
+- `npm run audit` — analisa diff local + docs
+- `npm run fetch` — extrai PR do GitHub
+- `npm run fetch-and-audit` — fetch + audit integrado
+- `npm run history` — consulta histórico no MongoDB
 
 ---
 
@@ -353,11 +349,11 @@ const selectModel = (diffSize: number, hasSecurity: boolean) => {
 
 ---
 
-### ADR-005: LLM Provider — Groq-first com fallback a Claude
+### ADR-005: LLM Provider — Groq-first com fallback a Gemini
 
 - **Contexto:** Qual LLM usar para análise de gaps de documentação, considerando os 5 valores do projeto?
 
-- **Decisão:** Groq Mixtral (rápido, barato) como default, com fallback automático a Claude 3.5 Sonnet para segurança crítica.
+- **Decisão:** Groq Llama 3.3 70B (rápido, barato) como default, com fallback automático a Gemini 2.5 Flash para segurança crítica.
 
 - **Alternativas consideradas:**
   - Claude puro (200k contexto, acurácia altíssima) — alinha com segurança, mas caro ($25-75/mês)
@@ -369,14 +365,54 @@ const selectModel = (diffSize: number, hasSecurity: boolean) => {
   - ✅ Alinha com "Máxima Eficiência de Custo": $5-20/mês (vs $50+ Claude)
   - ✅ Alinha com "Pragmatismo": 90%+ acurácia é bom suficiente
   - ✅ Alinha com "Contexto Real": 50-100ms latência (<30s análise)
-  - ✅ Alinha com "Segurança Negociável": fallback automático a Claude se segurança crítica
-  - ✅ Alinha com "Transparência": documenta limitações (32k contexto)
-  - ⚠️ Contexto limitado (32k) — pode truncar diffs muito grandes
+  - ✅ Alinha com "Segurança Negociável": fallback automático a Gemini se segurança crítica
+  - ✅ Alinha com "Transparência": documenta limitações (32k contexto Groq)
+  - ⚠️ Contexto limitado (32k no Groq) — pode truncar diffs muito grandes
   - ⚠️ ~10% false positives possível (aceitável: PMO revisa em 30s)
-  - ✅ 0% false negatives segurança (fallback a Claude valida)
+  - ✅ 0% false negatives segurança (fallback a Gemini valida)
   
 - **Justificativa final:** 
   - Começa pragmático com Groq (custo mínimo, latência ótima)
-  - Garante segurança com fallback a Claude quando necessário
-  - Se depois da v1 precisar de mais acurácia, migra para Claude puro
+  - Garante segurança com fallback a Gemini quando necessário
+  - Se depois da v1 precisar de mais acurácia, migra para modelo maior
   - Economiza $200+/mês respeitando o valor "Máxima Eficiência pelo Menor Custo"
+
+---
+
+### ADR-006: CLI com Commander.js
+
+- **Contexto:** A aplicação precisa de parsing de argumentos robusto, subcomandos distintos e help automático. Uma POC inicial usava parsing posicional simples (`process.argv`), o que não escala nem oferece boa DX.
+
+- **Decisão:** Usar Commander.js para CLI com 4 subcomandos: `audit`, `fetch`, `fetch-and-audit`, `history`.
+
+- **Alternativas consideradas:**
+  - `process.argv` manual (POC original) — sem validação, sem help, sem subcomandos
+  - Yargs — mais pesado, API mais verbosa
+  - Oclif (framework) — overkill para CLI pequeno
+
+- **Consequências:**
+  - ✅ CLI profissional com help automático, validação e aliases
+  - ✅ Extensível para novos subcomandos sem refatorar estrutura
+  - ✅ TypeScript-friendly com tipos nas opções
+  - ✅ Substituiu parsing posicional da POC de forma limpa
+  - ⚠️ Dependency adicional (~100KB), mas insignificante no bundle final
+
+---
+
+### ADR-007: Promoção do Extrator de PR para Serviço
+
+- **Contexto:** A POC original tinha o diff-reader isolado em `apps/poc-diff-reader/` (script standalone). Com a evolução para v0.2.0, a extração de dados de PRs precisava ser integrada ao pipeline principal e reutilizável por diferentes subcomandos.
+
+- **Decisão:** Promover o extrator de PR para `src/services/GitHubExtractorService.ts` como serviço de primeira classe, integrado ao CLI via subcomando `fetch`.
+
+- **Alternativas consideradas:**
+  - Manter como POC isolada (scripts separados) — sem integração, sem teste, sem reuso
+  - Extrair para biblioteca npm separada — overkill para escopo atual
+  - Inline no CLI handler — acoplamento alto, difícil de testar
+
+- **Consequências:**
+  - ✅ Reutilizável por qualquer subcomando (`fetch`, `fetch-and-audit`)
+  - ✅ Testável de forma isolada (injeção de dependências)
+  - ✅ Integrado ao CLI de forma limpa via Commander
+  - ✅ Removeu dependência da POC standalone
+  - ⚠️ Responsabilidade adicional no serviço (extrair + normalizar dados de PR)
