@@ -12,7 +12,7 @@
 - 8 cenários do Canvas de Experimento (novo endpoint, auth, variável de ambiente, refatoração, infraestrutura, doc atualizada, estilo, mudança sensível parcial).
 - Meta: ≥ 80 % de precisão na detecção de gaps; 0 falsos negativos em segurança.
 
-## Edge cases
+## Casos de borda
 - Diff vazio → interrompe com mensagem "Nenhuma alteração de código detectada."
 - ObjectId inválido → retorna `null` sem exceção.
 - Diff > 32k tokens → roteia para Gemini ou trunca com alerta.

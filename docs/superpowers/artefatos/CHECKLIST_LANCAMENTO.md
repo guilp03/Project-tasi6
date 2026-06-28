@@ -15,4 +15,4 @@
 | Validação end-to-end com APIs reais | ❌ | Pendente |
 | Redaction/mascaramento de secrets | ❌ | Pendente (recomendação P0 do relatório de segurança) |
 | GitHub Actions workflow | ❌ | Fora do escopo do MVP |
-| Gate de supply chain (`npm audit`) | ❌ | Pendente |
+| Verificação de cadeia de suprimentos (`npm audit`) | ❌ | Pendente |

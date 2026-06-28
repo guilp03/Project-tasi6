@@ -3,14 +3,14 @@
 # Painel de Feedback e Insights
 
 ## Método de coleta
-- Soft launch interno: a própria equipe executou os 8 cenários do Canvas de Experimento, simulando as personas Carolina (PMO) e Rafael (Developer).
+- Pré-lançamento interno: a própria equipe executou os 8 cenários do Canvas de Experimento, simulando as personas Carolina (PMO) e Rafael (Developer).
 - Participantes: 4 (integrantes da Equipe 3).
 - Instrumentos: execução da CLI + avaliação humana do relatório Markdown gerado.
 
 ## Análise quantitativa
 - Cenários executados: 8
 - Precisão observada nos cenários simples: ~90 % (gaps óbvios de API/auth/infra detectados)
-- Tempo de execução estimado: < 30 s por PR (mocks)
+- Tempo de execução estimado: < 30 s por PR (dados simulados)
 - Custo operacional por análise: ~US$ 0 (Groq/Gemini free tier)
 - Custo de desenvolvimento assistido por IA: ~US$ 7,13
 
