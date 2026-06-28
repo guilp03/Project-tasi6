@@ -6,9 +6,14 @@ seções, preenche as tabelas de economicidade e gera o arquivo final
 """
 
 import shutil
+import warnings
 from pathlib import Path
 
 from docx import Document
+
+# python-docx emite warning interno ao resolver estilos por style_id em
+# alguns templates; o comportamento é correto, então suprimimos.
+warnings.filterwarnings("ignore", message="style lookup by style_id")
 from docx.oxml import OxmlElement
 from docx.text.paragraph import Paragraph
 from docx.oxml.ns import qn
@@ -64,9 +69,12 @@ def insert_paragraph_after(paragraph, text, style="Normal"):
 
 
 def insert_bullet_after(paragraph, text):
-    """Insert a bulleted paragraph after the given one."""
-    new_p = insert_paragraph_after(paragraph, text)
-    # Try to apply List Bullet style; fallback to Normal if unavailable.
+    """Insert a bulleted paragraph after the given one.
+
+    O template não possui estilo de lista; usamos o prefixo '• ' como
+    marcador visual e tentamos aplicar o estilo List Bullet quando disponível.
+    """
+    new_p = insert_paragraph_after(paragraph, f"• {text}")
     try:
         new_p.style = "List Bullet"
     except Exception:
@@ -235,27 +243,39 @@ def fill_section_6(doc):
     last = add_subsection(last, "Interlídio — evolução para v0.2.0", SECAO_6_RESSONANCIA["interludio"])
 
 
+def _replace_after_heading(doc, heading_text, new_texts):
+    """Localiza um heading e substitui o primeiro parágrafo não-vazio após ele."""
+    for i, p in enumerate(doc.paragraphs):
+        if heading_text in p.text and p.style.name.startswith("Heading"):
+            j = i + 1
+            while j < len(doc.paragraphs) and not doc.paragraphs[j].text.strip():
+                j += 1
+            if j < len(doc.paragraphs):
+                replace_paragraph_text(doc.paragraphs[j], new_texts[0])
+                last = doc.paragraphs[j]
+                for text in new_texts[1:]:
+                    last = insert_paragraph_after(last, text)
+                return True
+    return False
+
+
 def fill_section_7(doc):
+    # Substitui o parágrafo introdutório da seção
     last = replace_section(doc, "Esta seção apresenta o consolidado", [SECAO_7_ECONOMICIDADE["nota_moeda"]])
     if not last:
         return
 
-    # 7.1
-    last = insert_paragraph_after(last, "7.1 Camada 1 — Custo real de IA (total do projeto)", "Heading 3")
-    last = insert_paragraph_after(last, SECAO_7_ECONOMICIDADE["camada1"])
+    # 7.1 — usa o heading já existente no template
+    _replace_after_heading(doc, "7.1 Camada 1", [SECAO_7_ECONOMICIDADE["camada1"]])
     # A tabela do template já foi preenchida em fill_economicidade.
 
     # 7.2
-    last = insert_paragraph_after(last, "7.2 Camada 2 — Esforço humano real (consolidado)", "Heading 3")
-    last = insert_paragraph_after(last, SECAO_7_ECONOMICIDADE["camada2"])
+    _replace_after_heading(doc, "7.2 Camada 2", [SECAO_7_ECONOMICIDADE["camada2"]])
 
     # 7.3
-    last = insert_paragraph_after(last, "7.3 Camada 3 — Custo contrafactual humano (total do projeto)", "Heading 3")
-    last = insert_paragraph_after(last, SECAO_7_ECONOMICIDADE["camada3"])
+    _replace_after_heading(doc, "7.3 Camada 3", [SECAO_7_ECONOMICIDADE["camada3"]])
 
-    # 7.4
-    last = insert_paragraph_after(last, "7.4 Análise comparativa", "Heading 3")
-    last = insert_paragraph_after(last, SECAO_7_ECONOMICIDADE["comparativa"])
+    # 7.4 — substitui os 5 parágrafos de placeholder
     comp_texts = [
         f"Custo total com IA (R$): R$ {ANALISE_COMPARATIVA['custo_com_ia_total_brl']} (tokens: R$ {ANALISE_COMPARATIVA['custo_com_ia_tokens_brl']} + horas humanas: R$ {ANALISE_COMPARATIVA['custo_com_ia_horas_brl']})",
         f"Custo total estimado sem IA (R$): R$ {ANALISE_COMPARATIVA['custo_sem_ia_brl']}",
@@ -263,13 +283,18 @@ def fill_section_7(doc):
         f"Saving estimado (R$): R$ {ANALISE_COMPARATIVA['saving_reais']}",
         f"Saving estimado (%): {ANALISE_COMPARATIVA['saving_percentual']}",
     ]
-    for txt in comp_texts:
-        last = insert_paragraph_after(last, txt)
+    idx = None
+    for i, p in enumerate(doc.paragraphs):
+        if "Custo total com IA (R$)" in p.text:
+            idx = i
+            break
+    if idx is not None:
+        for k, txt in enumerate(comp_texts):
+            if idx + k < len(doc.paragraphs):
+                replace_paragraph_text(doc.paragraphs[idx + k], txt)
 
     # 7.5
-    last = insert_paragraph_after(last, "7.5 Limitações da análise", "Heading 3")
-    for text in SECAO_7_ECONOMICIDADE["limitacoes"]:
-        last = insert_paragraph_after(last, text)
+    _replace_after_heading(doc, "7.5 Limitações", SECAO_7_ECONOMICIDADE["limitacoes"])
 
 
 def fill_section_8(doc):
