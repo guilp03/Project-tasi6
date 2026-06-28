@@ -44,7 +44,7 @@ CAMADA1_CUSTO_IA = [
     ["Composição", "81.000", "39.000", "0,0356", "—"],
     ["Ensaio", "92.000", "103.500", "6,3646", "—"],
     ["Ressonância + Interlídio", "229.000", "109.000", "0,7260", "—"],
-    ["Total", "421.000", "261.000", "7,1322", "—"],
+    ["Total", "421.000", "261.000", "7,1359", "—"],
 ]
 
 CAMADA2_ESFORCO_HUMANO = [
@@ -74,12 +74,12 @@ CAMADA3_CONTRAFACTUAL = [
 ]
 
 ANALISE_COMPARATIVA = {
-    "custo_com_ia_tokens_brl": "35,66",
+    "custo_com_ia_tokens_brl": "35,68",
     "custo_com_ia_horas_brl": "1.122,50",
-    "custo_com_ia_total_brl": "1.158,16",
+    "custo_com_ia_total_brl": "1.158,18",
     "custo_sem_ia_brl": "5.762,50",
     "razao": "4,98×",
-    "saving_reais": "4.604,34",
+    "saving_reais": "4.604,32",
     "saving_percentual": "79,9%",
 }
 
