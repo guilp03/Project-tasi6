@@ -80,7 +80,7 @@ ANALISE_COMPARATIVA = {
     "custo_sem_ia_brl": "5.762,50",
     "razao": "4,98×",
     "saving_reais": "4.604,34",
-    "saving_percentual": "79,9 %",
+    "saving_percentual": "79,9%",
 }
 
 # -----------------------------------------------------------------------------
