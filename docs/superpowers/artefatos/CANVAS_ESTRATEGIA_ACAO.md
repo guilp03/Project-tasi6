@@ -1,4 +1,4 @@
-> ⚠️ Conteúdo deduzido indutivamente a partir dos artefatos existentes. Revisar antes da entrega final.
+> ⚠️ Conteúdo deduzido indutivamente a partir da proposta, workflow e artefatos existentes. Revisar antes da entrega final.
 
 # Canvas de Estratégia e Ação
 
