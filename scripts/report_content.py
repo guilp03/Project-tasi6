@@ -708,8 +708,76 @@ SECAO_10_LICOES = {
 }
 
 # -----------------------------------------------------------------------------
+# TABELAS AUXILIARES
+# -----------------------------------------------------------------------------
+
+ADR_TABLE = {
+    "headers": ["ADR", "Decisão", "Trade-off principal"],
+    "rows": [
+        [
+            "ADR-001",
+            "GITHUB_TOKEN do GitHub Actions",
+            "Token temporário, escopo automático, mas menos granular que GitHub App",
+        ],
+        [
+            "ADR-002",
+            "Node.js + TypeScript CLI",
+            "Startup rápido e ecossistema CLI, mas menos libs de LLM que Python",
+        ],
+        [
+            "ADR-003",
+            "MongoDB para histórico",
+            "Flexibilidade JSON e feedback learning, mas custo cloud e sem transações",
+        ],
+        [
+            "ADR-004",
+            "Execução via GitHub Actions",
+            "Sem servidor, integração nativa, mas logging limitado",
+        ],
+        [
+            "ADR-005",
+            "Groq-first + fallback Gemini",
+            "Custo baixo no caminho feliz e segurança nos casos críticos",
+        ],
+        ["ADR-006", "CLI com Commander.js", "Subcomandos profissionais com help/validação"],
+        [
+            "ADR-007",
+            "Promoção do extrator de PR",
+            "Serviço reutilizável e testável, substituindo POC isolada",
+        ],
+    ],
+}
+
+SEGURANCA_TABLE = {
+    "headers": ["Achado", "Severidade", "Resumo da mitigação"],
+    "rows": [
+        ["AS-01", "Alta", "Implementar redaction de secrets antes da LLM"],
+        ["AS-02", "Alta", "Falhar o job para criticidade Crítica"],
+        ["AS-03", "Alta", "Tornar MongoDB obrigatório em CI/CD"],
+        ["AS-04", "Alta", "Modelo append-only para histórico"],
+        ["AS-05", "Alta", "Publicar apenas resumo sanitizado no PR"],
+        [
+            "AS-06",
+            "Média/Alta",
+            "Delimitar dados não confiáveis e regras determinísticas",
+        ],
+        ["AS-07", "Média", "Falhar fechado em erro de parsing"],
+        ["AS-08", "Média", "Permissões mínimas no GITHUB_TOKEN"],
+        ["AS-09", "Média/Alta", "Verificação de cadeia de suprimentos (npm audit)"],
+        ["AS-10", "Média", "Retenção mínima de artefatos brutos"],
+    ],
+}
+
+# -----------------------------------------------------------------------------
 # SEÇÃO 11 — REFERÊNCIAS
 # -----------------------------------------------------------------------------
+
+SECAO_11_INTRO = (
+    "As referências utilizadas incluem fundamentos de engenharia de software, "
+    "documentação de arquitetura, papers sobre manutenção de documentação com "
+    "LLMs, legislação de proteção de dados e documentação das APIs e ferramentas "
+    "empregadas."
+)
 
 SECAO_11_REFERENCIAS = [
     "Garcia, A. & Medeiros, F. Metodologia Sinfonia. Material da disciplina IF1015 — ESAIA, CIn/UFPE, 2026.1.",

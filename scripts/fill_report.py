@@ -5,24 +5,25 @@ seções, preenche as tabelas de economicidade e gera o arquivo final
 `Relatorio_Final_Equipe3.docx`.
 """
 
-import copy
 import shutil
 from pathlib import Path
 
 from docx import Document
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.text.paragraph import Paragraph
 from docx.oxml.ns import qn
 
 from report_content import (
+    ADR_TABLE,
     ANALISE_COMPARATIVA,
     CAMADA1_CUSTO_IA,
     CAMADA2_ESFORCO_HUMANO,
     CAMADA3_CONTRAFACTUAL,
     CAPA,
     DISCLAIMER,
+    SEGURANCA_TABLE,
     SECAO_10_LICOES,
+    SECAO_11_INTRO,
     SECAO_11_REFERENCIAS,
     SECAO_12_APENDICES,
     SECAO_1_INTRODUCAO,
@@ -51,12 +52,13 @@ def replace_paragraph_text(paragraph, new_text):
     set_run_font(run)
 
 
-def insert_paragraph_after(paragraph, text, style="normal"):
+def insert_paragraph_after(paragraph, text, style="Normal"):
     """Insert a new paragraph after the given one."""
     new_p = OxmlElement("w:p")
     paragraph._element.addnext(new_p)
     new_paragraph = Paragraph(new_p, paragraph._parent)
-    new_paragraph.text = text
+    run = new_paragraph.add_run(text)
+    set_run_font(run)
     new_paragraph.style = style
     return new_paragraph
 
@@ -64,11 +66,11 @@ def insert_paragraph_after(paragraph, text, style="normal"):
 def insert_bullet_after(paragraph, text):
     """Insert a bulleted paragraph after the given one."""
     new_p = insert_paragraph_after(paragraph, text)
-    # Try to apply List Bullet style; fallback to normal if unavailable.
+    # Try to apply List Bullet style; fallback to Normal if unavailable.
     try:
         new_p.style = "List Bullet"
     except Exception:
-        new_p.style = "normal"
+        new_p.style = "Normal"
     return new_p
 
 
@@ -142,6 +144,8 @@ def fill_disclaimer(doc):
 
 
 def fill_economicidade(doc):
+    if len(doc.tables) < 3:
+        raise ValueError("Template deve conter pelo menos 3 tabelas de economicidade")
     fill_table(doc.tables[0], CAMADA1_CUSTO_IA)
     fill_table(doc.tables[1], CAMADA2_ESFORCO_HUMANO)
     fill_table(doc.tables[2], CAMADA3_CONTRAFACTUAL)
@@ -163,7 +167,10 @@ def replace_section(doc, needle, paragraphs):
 def add_subsection(paragraph, title, content):
     """Insere um subtítulo em negrito e parágrafos de conteúdo."""
     last = insert_paragraph_after(paragraph, title)
-    last.runs[0].bold = True
+    if last.runs:
+        run = last.runs[0]
+        run.bold = True
+        set_run_font(run)
     for text in content:
         last = insert_paragraph_after(last, text)
     return last
@@ -189,18 +196,8 @@ def fill_section_4(doc):
     last = add_subsection(last, "Registro de Decisões Arquiteturais", SECAO_4_COMPOSICAO["adrs"])
 
     # Tabela resumida dos ADRs
-    adr_headers = ["ADR", "Decisão", "Trade-off principal"]
-    adr_rows = [
-        ["ADR-001", "GITHUB_TOKEN do GitHub Actions", "Token temporário, escopo automático, mas menos granular que GitHub App"],
-        ["ADR-002", "Node.js + TypeScript CLI", "Startup rápido e ecossistema CLI, mas menos libs de LLM que Python"],
-        ["ADR-003", "MongoDB para histórico", "Flexibilidade JSON e feedback learning, mas custo cloud e sem transações"],
-        ["ADR-004", "Execução via GitHub Actions", "Sem servidor, integração nativa, mas logging limitado"],
-        ["ADR-005", "Groq-first + fallback Gemini", "Custo baixo no caminho feliz e segurança nos casos críticos"],
-        ["ADR-006", "CLI com Commander.js", "Subcomandos profissionais com help/validação"],
-        ["ADR-007", "Promoção do extrator de PR", "Serviço reutilizável e testável, substituindo POC isolada"],
-    ]
     last = insert_paragraph_after(last, "Resumo das decisões:")
-    last = insert_table_after(doc, last, adr_headers, adr_rows)
+    last = insert_table_after(doc, last, ADR_TABLE["headers"], ADR_TABLE["rows"])
 
     last = add_subsection(last, "Catálogo de Registros de Prompt", [SECAO_4_COMPOSICAO["catalogo"]])
     last = add_subsection(last, "Canvas de Design de Experimento", [SECAO_4_COMPOSICAO["experimento"]])
@@ -218,21 +215,9 @@ def fill_section_5(doc):
     last = add_subsection(last, "Análise de segurança (Aula 30)", SECAO_5_ENSAIO["seguranca"])
 
     # Tabela de achados de segurança
-    sec_headers = ["Achado", "Severidade", "Resumo da mitigação"]
-    sec_rows = [
-        ["AS-01", "Alta", "Implementar redaction de secrets antes da LLM"],
-        ["AS-02", "Alta", "Falhar o job para criticidade Crítica"],
-        ["AS-03", "Alta", "Tornar MongoDB obrigatório em CI/CD"],
-        ["AS-04", "Alta", "Modelo append-only para histórico"],
-        ["AS-05", "Alta", "Publicar apenas resumo sanitizado no PR"],
-        ["AS-06", "Média/Alta", "Delimitar dados não confiáveis e regras determinísticas"],
-        ["AS-07", "Média", "Falhar fechado em erro de parsing"],
-        ["AS-08", "Média", "Permissões mínimas no GITHUB_TOKEN"],
-        ["AS-09", "Média/Alta", "Gate de supply chain (npm audit)"],
-        ["AS-10", "Média", "Retenção mínima de artefatos brutos"],
-    ]
     last = insert_paragraph_after(last, "Priorização das ações:")
-    last = insert_table_after(doc, last, sec_headers, sec_rows)
+    last = insert_table_after(doc, last, SEGURANCA_TABLE["headers"], SEGURANCA_TABLE["rows"])
+
 
     last = add_subsection(last, "Checklist de Lançamento (deduzido)", [SECAO_5_ENSAIO["checklist"]])
     last = add_subsection(last, "Evidências de funcionamento", [SECAO_5_ENSAIO["evidencias"]])
@@ -309,7 +294,7 @@ def fill_section_11(doc):
     p = find_paragraph(doc, "Fontes teóricas, técnicas")
     if not p:
         return
-    replace_paragraph_text(p, "As referências utilizadas incluem fundamentos de engenharia de software, documentação de arquitetura, papers sobre manutenção de documentação com LLMs, legislação de proteção de dados e documentação das APIs e ferramentas empregadas.")
+    replace_paragraph_text(p, SECAO_11_INTRO)
     last = p
     for ref in SECAO_11_REFERENCIAS:
         last = insert_bullet_after(last, ref)
