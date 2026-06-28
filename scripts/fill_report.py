@@ -146,9 +146,38 @@ def fill_capa(doc):
 
 
 def fill_disclaimer(doc):
-    p = find_paragraph(doc, "Template oficial")
+    p = find_paragraph(doc, "Disclaimer")
     if p:
-        replace_paragraph_text(p, DISCLAIMER)
+        insert_paragraph_after(p, DISCLAIMER)
+
+
+def clear_template_guides(doc):
+    """Remove parágrafos-guia do template após o 'Disclaimer'.
+
+    Os parágrafos-guia explicam o que cada seção deve conter. Eles são
+    removidos para que o conteúdo real seja inserido depois dos headings.
+    A Seção 7 é preservada (não removida) porque seus placeholders são
+    preenchidos in-place pelas subseções 7.1–7.5.
+    """
+    found = False
+    in_section_7 = False
+    to_remove = []
+    for p in doc.paragraphs:
+        if p.style.name == "Heading 2" and "Disclaimer" in p.text:
+            found = True
+            continue
+        if not found:
+            continue
+        if p.style.name == "Heading 2" and "7." in p.text and "Economicidade" in p.text:
+            in_section_7 = True
+            continue
+        if in_section_7 and p.style.name == "Heading 2" and "8." in p.text:
+            in_section_7 = False
+            continue
+        if not in_section_7 and p.style.name == "normal":
+            to_remove.append(p)
+    for p in to_remove:
+        p._element.getparent().remove(p._element)
 
 
 def fill_economicidade(doc):
@@ -159,17 +188,16 @@ def fill_economicidade(doc):
     fill_table(doc.tables[2], CAMADA3_CONTRAFACTUAL)
 
 
-def replace_section(doc, needle, paragraphs):
-    """Substitui o parágrafo-guia pelo primeiro parágrafo e insere os demais."""
-    p = find_paragraph(doc, needle)
-    if not p:
-        print(f"Aviso: parágrafo-guia não encontrado: {needle}")
-        return None
-    replace_paragraph_text(p, paragraphs[0])
-    last = p
-    for text in paragraphs[1:]:
-        last = insert_paragraph_after(last, text)
-    return last
+def insert_after_heading(doc, heading_needle, paragraphs):
+    """Localiza um heading e insere os parágrafos logo após ele."""
+    for p in doc.paragraphs:
+        if p.style.name.startswith("Heading") and heading_needle in p.text:
+            last = p
+            for text in paragraphs:
+                last = insert_paragraph_after(last, text)
+            return last
+    print(f"Aviso: heading não encontrado: {heading_needle}")
+    return None
 
 
 def add_subsection(paragraph, title, content):
@@ -184,8 +212,16 @@ def add_subsection(paragraph, title, content):
     return last
 
 
+def fill_section_1(doc):
+    insert_after_heading(doc, "1. Introdução", SECAO_1_INTRODUCAO)
+
+
+def fill_section_2(doc):
+    insert_after_heading(doc, "2. Metodologia", SECAO_2_METODOLOGIA)
+
+
 def fill_section_3(doc):
-    last = replace_section(doc, "Artefatos da Exposição", [SECAO_3_EXPOSICAO["intro"]])
+    last = insert_after_heading(doc, "3. Movimento 1", [SECAO_3_EXPOSICAO["intro"]])
     if not last:
         return
     last = add_subsection(last, "Canvas de Estratégia e Ação (deduzido)", SECAO_3_EXPOSICAO["canvas_estrategia"])
@@ -197,7 +233,7 @@ def fill_section_3(doc):
 
 
 def fill_section_4(doc):
-    last = replace_section(doc, "Artefatos da Composição", [SECAO_4_COMPOSICAO["intro"]])
+    last = insert_after_heading(doc, "4. Movimento 2", [SECAO_4_COMPOSICAO["intro"]])
     if not last:
         return
     last = add_subsection(last, "C4 Model (Níveis 1, 2 e 3)", SECAO_4_COMPOSICAO["c4"])
@@ -213,7 +249,7 @@ def fill_section_4(doc):
 
 
 def fill_section_5(doc):
-    last = replace_section(doc, "Artefatos do Ensaio", [SECAO_5_ENSAIO["intro"]])
+    last = insert_after_heading(doc, "5. Movimento 3", [SECAO_5_ENSAIO["intro"]])
     if not last:
         return
     last = add_subsection(last, "Estratégia de desenvolvimento e tecnologias", SECAO_5_ENSAIO["dev"])
@@ -226,13 +262,12 @@ def fill_section_5(doc):
     last = insert_paragraph_after(last, "Priorização das ações:")
     last = insert_table_after(doc, last, SEGURANCA_TABLE["headers"], SEGURANCA_TABLE["rows"])
 
-
     last = add_subsection(last, "Checklist de Lançamento (deduzido)", [SECAO_5_ENSAIO["checklist"]])
     last = add_subsection(last, "Evidências de funcionamento", [SECAO_5_ENSAIO["evidencias"]])
 
 
 def fill_section_6(doc):
-    last = replace_section(doc, "Artefatos da Ressonância", [SECAO_6_RESSONANCIA["intro"]])
+    last = insert_after_heading(doc, "6. Movimento 4", [SECAO_6_RESSONANCIA["intro"]])
     if not last:
         return
     last = add_subsection(last, "Lançamento e coleta de feedback (deduzido)", [SECAO_6_RESSONANCIA["lancamento"]])
@@ -241,6 +276,7 @@ def fill_section_6(doc):
     last = add_subsection(last, "Decisão estratégica", [SECAO_6_RESSONANCIA["decisao"]])
     last = add_subsection(last, "Canvas de Escalabilidade (deduzido)", [SECAO_6_RESSONANCIA["escalabilidade"]])
     last = add_subsection(last, "Interlídio — evolução para v0.2.0", SECAO_6_RESSONANCIA["interludio"])
+
 
 
 def _replace_after_heading(doc, heading_text, new_texts):
@@ -260,10 +296,8 @@ def _replace_after_heading(doc, heading_text, new_texts):
 
 
 def fill_section_7(doc):
-    # Substitui o parágrafo introdutório da seção
-    last = replace_section(doc, "Esta seção apresenta o consolidado", [SECAO_7_ECONOMICIDADE["nota_moeda"]])
-    if not last:
-        return
+    # Substitui o parágrafo-guia introdutório da seção pela nota de moeda
+    _replace_after_heading(doc, "7. Economicidade", [SECAO_7_ECONOMICIDADE["nota_moeda"]])
 
     # 7.1 — usa o heading já existente no template
     _replace_after_heading(doc, "7.1 Camada 1", [SECAO_7_ECONOMICIDADE["camada1"]])
@@ -298,15 +332,15 @@ def fill_section_7(doc):
 
 
 def fill_section_8(doc):
-    replace_section(doc, "Decisões arquiteturais justificadas", SECAO_8_DISCUSSOES)
+    insert_after_heading(doc, "8. Discussões Técnicas e Estratégicas", SECAO_8_DISCUSSOES)
 
 
 def fill_section_9(doc):
-    replace_section(doc, "Identificação de riscos, vieses", SECAO_9_ETICA)
+    insert_after_heading(doc, "9. Considerações Éticas", SECAO_9_ETICA)
 
 
 def fill_section_10(doc):
-    last = replace_section(doc, "Reflexões sobre a experiência", [SECAO_10_LICOES["sinfonia"]])
+    last = insert_after_heading(doc, "10. Lições Aprendidas e Reflexões Finais", [SECAO_10_LICOES["sinfonia"]])
     if not last:
         return
     last = add_subsection(last, "Avaliação da proposta de valor entregue", [SECAO_10_LICOES["valor"]])
@@ -316,21 +350,13 @@ def fill_section_10(doc):
 
 
 def fill_section_11(doc):
-    p = find_paragraph(doc, "Fontes teóricas, técnicas")
-    if not p:
-        return
-    replace_paragraph_text(p, SECAO_11_INTRO)
-    last = p
+    last = insert_after_heading(doc, "11. Referências", [SECAO_11_INTRO])
     for ref in SECAO_11_REFERENCIAS:
         last = insert_bullet_after(last, ref)
 
 
 def fill_section_12(doc):
-    p = find_paragraph(doc, "Workflow Document completo")
-    if not p:
-        return
-    replace_paragraph_text(p, "Os apêndices reúnem os artefatos produzidos ao longo do projeto.")
-    last = p
+    last = insert_after_heading(doc, "12. Apêndices", ["Os apêndices reúnem os artefatos produzidos ao longo do projeto."])
     for item in SECAO_12_APENDICES:
         last = insert_bullet_after(last, item)
 
@@ -342,13 +368,17 @@ def main():
     shutil.copy(TEMPLATE, OUTPUT)
     doc = Document(OUTPUT)
 
+    # 1. Limpa os parágrafos-guia do template (exceto headings).
+    clear_template_guides(doc)
+
+    # 2. Preenche capa, disclaimer e tabelas.
     fill_capa(doc)
     fill_disclaimer(doc)
     fill_economicidade(doc)
 
-    replace_section(doc, "Contextualização do problema de engenharia de software", SECAO_1_INTRODUCAO)
-    replace_section(doc, "As duas entregas indissociáveis", SECAO_2_METODOLOGIA)
-
+    # 3. Preenche cada seção inserindo conteúdo após o heading.
+    fill_section_1(doc)
+    fill_section_2(doc)
     fill_section_3(doc)
     fill_section_4(doc)
     fill_section_5(doc)
