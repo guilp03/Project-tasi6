@@ -44,6 +44,6 @@ export function file(
 export const VALID_AUDIT_JSON = JSON.stringify({
   requires_docs_update: true,
   criticidade: "Alta",
-  gaps: ["Novo endpoint não documentado"],
+  gaps: ["feature.ts: novo endpoint não documentado"],
   justificativa: "Mudança relevante sem documentação correspondente.",
 });

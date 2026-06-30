@@ -23,7 +23,7 @@ const AnalysisSchema = new Schema<AnalysisDocument>(
     analysis: {
       status: {
         type: String,
-        enum: ["Atenção necessária", "OK"],
+        enum: ["Atenção necessária", "OK", "Inconclusiva"],
         required: true,
       },
       criticality: {
@@ -36,6 +36,7 @@ const AnalysisSchema = new Schema<AnalysisDocument>(
       documentationGaps: { type: [String], required: true },
       justification: { type: String, required: true },
       recommendations: { type: [String], required: true },
+      parseFailure: { type: Boolean, default: false },
     },
     llm: {
       provider: { type: String, enum: ["groq", "gemini"], required: true },

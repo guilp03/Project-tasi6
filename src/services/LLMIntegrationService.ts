@@ -10,6 +10,7 @@ import {
   DIFF_SIZE_THRESHOLD,
 } from "./types.js";
 import { buildAuditPrompt } from "../utils/prompts.js";
+import { validateGapsGrounding } from "../utils/grounding.js";
 
 export class LLMIntegrationService {
   // Free-tier model IDs (ADR-005). Centralized so the record and the payloads agree.
@@ -99,6 +100,13 @@ export class LLMIntegrationService {
 
   /**
    * Map the raw AuditResult + context into the §5.6-aligned AnalysisRecord.
+   *
+   * Aplica três camadas determinísticas pós-LLM (spec contenção-alucinacao):
+   *   #3 fail-closed   — se parseJSONSafely devolveu gap "Análise inconclusiva",
+   *                      marca parseFailure e sobrepõe tudo com estado bloqueante.
+   *   #2 grounding     — descarta gaps que não citam arquivo real do PR.
+   *                      Se nenhum sobreviver (e não houver floor) → Inconclusiva.
+   *   #1 floor         — PR sensível (auth/.env/CI-CD/infra) força Crítica.
    */
   private assembleRecord(
     corpus: PRCorpus,
@@ -107,6 +115,78 @@ export class LLMIntegrationService {
     usage: TokenUsage,
     model: string
   ): AnalysisRecord {
+    // --- Medida #3: detectar falha de parsing (gap fixo do fallback) ----
+    const parseFailure = result.gaps.some(
+      (g) => typeof g === "string" && g.startsWith("Análise inconclusiva — resposta da LLM")
+    );
+
+    // --- Medida #2: grounding dos gaps ----------------------------------
+    const { groundedGaps, grounded } = validateGapsGrounding(result, corpus);
+
+    // --- Medida #1: floor de criticidade --------------------------------
+    const ctx = routing.context;
+    const securityFloorTriggered =
+      ctx.hasSecurityChanges ||
+      ctx.hasAuthChanges ||
+      ctx.hasEnvChanges ||
+      ctx.hasCICDChanges;
+
+    // --- Consolidar finalGaps / status / criticality --------------------
+    let finalGaps: string[];
+    let finalStatus: "Atenção necessária" | "OK" | "Inconclusiva";
+    let finalCriticality: AuditResult["criticidade"];
+    let finalJustification = result.justificativa;
+    let finalRequiresDocsUpdate = result.requires_docs_update;
+
+    if (parseFailure) {
+      // #3 disparou — estado bloqueante, sobrepõe tudo
+      finalGaps = result.gaps;
+      finalStatus = "Inconclusiva";
+      finalCriticality = "Crítica";
+      finalRequiresDocsUpdate = true;
+    } else if (!grounded && !securityFloorTriggered) {
+      // #2 descartou todos os gaps e nenhum piso de segurança se aplica
+      finalGaps = [
+        "Análise inconclusiva: gaps gerados pela LLM não puderam ser ancorados nos artefatos do PR — revisão humana recomendada.",
+      ];
+      finalStatus = "Inconclusiva";
+      finalCriticality = "Alta"; // conservador, não Crítica: sem prova de segurança
+      finalRequiresDocsUpdate = true;
+    } else if (securityFloorTriggered) {
+      // #1 floor — injeta gap determinístico e força Crítica
+      const SENSITIVE_FILE_RE =
+        /auth|\.env|\.github[/\\]workflows|infra|secret|credential|docker|terraform|k8s|kubernetes|token|password|ssl|tls|crypto/i;
+      const sensitiveFiles = corpus.files
+        .filter((f) => SENSITIVE_FILE_RE.test(f.path))
+        .map((f) => f.path);
+      const fileList =
+        sensitiveFiles.length > 0
+          ? sensitiveFiles.join(", ")
+          : "arquivos sensíveis (ver routing)";
+      const detGap =
+        `[DETERMINÍSTICO] Arquivo sensível detectado (${fileList}) — ` +
+        `documentação obrigatória por regra determinística (RNF-003).`;
+      finalGaps = [...groundedGaps, detGap];
+      finalStatus = "Atenção necessária";
+      finalCriticality = "Crítica";
+      finalRequiresDocsUpdate = true;
+      finalJustification =
+        `Criticidade elevada por floor determinístico (RNF-003). ` +
+        `Justificativa LLM: ${result.justificativa}`;
+    } else {
+      // Caminho feliz — somente #2 aplicado
+      finalGaps = groundedGaps;
+      finalStatus = result.requires_docs_update ? "Atenção necessária" : "OK";
+      finalCriticality = result.criticidade;
+    }
+
+    const effectiveResult: AuditResult = {
+      requires_docs_update: finalRequiresDocsUpdate,
+      criticidade: finalCriticality,
+      gaps: finalGaps,
+      justificativa: finalJustification,
+    };
+
     return {
       repository: corpus.pr.repository,
       pullRequest: {
@@ -116,15 +196,16 @@ export class LLMIntegrationService {
         url: corpus.pr.html_url,
       },
       analysis: {
-        status: result.requires_docs_update ? "Atenção necessária" : "OK",
-        criticality: result.criticidade,
-        requiresDocsUpdate: result.requires_docs_update,
+        status: finalStatus,
+        criticality: finalCriticality,
+        requiresDocsUpdate: finalRequiresDocsUpdate,
         detectedChanges: corpus.files.map(
           (f: FileMetadata) => `${f.path} (${f.status})`
         ),
-        documentationGaps: result.gaps,
-        justification: result.justificativa,
-        recommendations: this.deriveRecommendations(result),
+        documentationGaps: finalGaps,
+        justification: finalJustification,
+        recommendations: this.deriveRecommendations(effectiveResult),
+        parseFailure,
       },
       llm: {
         provider: routing.provider,
@@ -140,8 +221,15 @@ export class LLMIntegrationService {
 
   /**
    * Derive PMO-facing recommendations from the audit result.
+   * Branch Inconclusiva tem prioridade sobre criticidade.
    */
   private deriveRecommendations(result: AuditResult): string[] {
+    if (result.gaps.some((g) => g.includes("Análise inconclusiva"))) {
+      return [
+        "Rejeitar auto-aprovação: resultados inconclusivos demandam revisão humana.",
+        "Inspeção manual do PR antes de qualquer decisão de merge.",
+      ];
+    }
     if (!result.requires_docs_update) {
       return ["Documentação parece adequada; nenhuma ação documental necessária."];
     }
@@ -477,20 +565,21 @@ export class LLMIntegrationService {
       return parsed as AuditResult;
     } catch (error) {
       console.warn(
-        `[Warning] Failed to parse LLM JSON response: ${
+        `[Warning] LLM response unparseable: ${
           error instanceof Error ? error.message : String(error)
-        }. Using safe default.`
+        }. Fail-closed.`
       );
 
-      // Return safe default
+      // Medida #3 — fail-closed: nunca devolver "OK" quando a resposta da
+      // LLM não pôde ser interpretada (AS-07). Estado conservador bloqueante.
       return {
-        requires_docs_update: false,
-        criticidade: "Média",
+        requires_docs_update: true,
+        criticidade: "Crítica",
         gaps: [
-          "LLM response could not be parsed - manual review recommended",
+          "Análise inconclusiva — resposta da LLM não pôde ser interpretada. Revisão humana obrigatória.",
         ],
         justificativa:
-          "Failed to parse structured response from LLM API. Please verify PR manually.",
+          "Falha de parsing ou schema inválido. A auditoria não é trustable; revisar PR manualmente.",
       };
     }
   }
