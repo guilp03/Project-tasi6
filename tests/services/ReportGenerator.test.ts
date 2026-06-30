@@ -105,4 +105,63 @@ describe("ReportGenerator", () => {
     expect(md).toContain("OK");
     expect(md).toContain("Baixa");
   });
+
+  it("renderiza status Inconclusiva", () => {
+    const inconclusiveRecord: AnalysisRecord = {
+      ...mockRecord,
+      analysis: {
+        ...mockRecord.analysis,
+        status: "Inconclusiva",
+        criticality: "Alta",
+        documentationGaps: [
+          "Análise inconclusiva: gaps gerados pela LLM não puderam ser ancorados nos artefatos do PR — revisão humana recomendada.",
+        ],
+        recommendations: [
+          "Rejeitar auto-aprovação: resultados inconclusivos demandam revisão humana.",
+          "Inspeção manual do PR antes de qualquer decisão de merge.",
+        ],
+      },
+    };
+
+    const generator = new ReportGenerator();
+    const md = generator.generate(inconclusiveRecord);
+
+    expect(md).toContain("# Status");
+    expect(md).toContain("Inconclusiva");
+    expect(md).toContain(
+      "Análise inconclusiva: gaps gerados pela LLM não puderam ser ancorados"
+    );
+  });
+
+  it("adiciona nota visual when parseFailure true", () => {
+    const parseFailRecord: AnalysisRecord = {
+      ...mockRecord,
+      analysis: {
+        ...mockRecord.analysis,
+        status: "Inconclusiva",
+        criticality: "Crítica",
+        parseFailure: true,
+        documentationGaps: [
+          "Análise inconclusiva — resposta da LLM não pôde ser interpretada. Revisão humana obrigatória.",
+        ],
+        recommendations: [
+          "Rejeitar auto-aprovação: resultados inconclusivos demandam revisão humana.",
+          "Inspeção manual do PR antes de qualquer decisão de merge.",
+        ],
+      },
+    };
+
+    const generator = new ReportGenerator();
+    const md = generator.generate(parseFailRecord);
+
+    expect(md).toContain("⚠");
+    expect(md).toContain("não utilizar como aprovação automática");
+  });
+
+  it("não adiciona nota visual quando parseFailure false/ausente", () => {
+    const generator = new ReportGenerator();
+    const md = generator.generate(mockRecord);
+
+    expect(md).not.toContain("não utilizar como aprovação automática");
+  });
 });

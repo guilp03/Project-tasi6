@@ -46,6 +46,16 @@ export class ReportGenerator {
       `*Provedor: ${llm.provider} | Modelo: ${llm.model} | Tokens: ${llm.inputTokens} in / ${llm.outputTokens} out*`
     );
 
+    // Medida #3 — nota visual quando houve falha de parsing (status Inconclusiva
+    // por causa de resposta LLM não-confiável). Não utilizar como aprovação automática.
+    if (analysis.parseFailure) {
+      lines.push(
+        "",
+        "---",
+        "⚠ Esta auditoria foi marcada como inconclusiva por falha de parsing da LLM — não utilizar como aprovação automática."
+      );
+    }
+
     return lines.join("\n");
   }
 }
