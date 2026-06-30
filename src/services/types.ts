@@ -73,13 +73,14 @@ export interface AnalysisRecord {
     url: string;
   };
   analysis: {
-    status: "Atenção necessária" | "OK";
+    status: "Atenção necessária" | "OK" | "Inconclusiva";
     criticality: AuditResult["criticidade"];
     requiresDocsUpdate: boolean;
     detectedChanges: string[]; // derivado dos arquivos do PR
     documentationGaps: string[]; // = AuditResult.gaps
     justification: string; // = AuditResult.justificativa
     recommendations: string[]; // derivado da criticidade
+    parseFailure?: boolean; // Medida #3 — true quando LLM devolveu JSON não-confiável
   };
   llm: {
     provider: "groq" | "gemini";
