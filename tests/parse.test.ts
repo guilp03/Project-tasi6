@@ -29,14 +29,15 @@ describe("parseJSONSafely", () => {
     expect(result.gaps).toHaveLength(2);
   });
 
-  it("falls back safely on malformed JSON", () => {
+  it("fail-closed: returns conservative fallback on malformed JSON", () => {
     const result = parse("not json at all {");
-    expect(result.requires_docs_update).toBe(false);
-    expect(result.criticidade).toBe("Média");
-    expect(result.gaps[0]).toMatch(/could not be parsed/i);
+    expect(result.requires_docs_update).toBe(true);
+    expect(result.criticidade).toBe("Crítica");
+    expect(result.gaps[0]).toMatch(/^Análise inconclusiva — resposta da LLM/);
+    expect(result.justificativa).toContain("Falha de parsing");
   });
 
-  it("falls back when JSON is valid but criticidade is invalid", () => {
+  it("fail-closed when JSON is valid but criticidade is invalid", () => {
     const result = parse(
       JSON.stringify({
         requires_docs_update: true,
@@ -45,10 +46,11 @@ describe("parseJSONSafely", () => {
         justificativa: "x",
       })
     );
-    expect(result.criticidade).toBe("Média"); // safe default
+    expect(result.requires_docs_update).toBe(true);
+    expect(result.criticidade).toBe("Crítica"); // conservative floor
   });
 
-  it("falls back when a required field has the wrong type", () => {
+  it("fail-closed when a required field has the wrong type", () => {
     const result = parse(
       JSON.stringify({
         requires_docs_update: "yes", // should be boolean
@@ -57,6 +59,8 @@ describe("parseJSONSafely", () => {
         justificativa: "x",
       })
     );
-    expect(result.gaps[0]).toMatch(/could not be parsed/i);
+    expect(result.requires_docs_update).toBe(true);
+    expect(result.criticidade).toBe("Crítica");
+    expect(result.gaps[0]).toMatch(/^Análise inconclusiva — resposta da LLM/);
   });
 });
