@@ -185,6 +185,7 @@ interface AnalysisRecord {
 
 ## Limitações conhecidas
 
+- **Contenção de alucinação:** três camadas determinísticas pós-LLM (#3 fail-closed no parsing + #2 grounding dos gaps + #1 floor de criticidade) garantem RNF-003 sem inflar custo/latência. Detalhes em [`docs/CONTENCAO_ALUCINACAO.md`](./docs/CONTENCAO_ALUCINACAO.md).
 - **Sem teste end-to-end validado:** as métricas de latência/custo são projeções, ainda não medidas em execução real contra as APIs.
 - **Dependência de APIs gratuitas:** sujeito a rate limits e à descontinuação de modelos (o modelo Groq precisou ser trocado quando o `mixtral-8x7b-32768` foi descontinuado).
 - **Onde a IA pode falhar:** documentação muito genérica confunde a detecção de gaps; diffs que excedem a janela de contexto exigem fragmentação; classificações de criticidade dependem da qualidade do prompt e podem variar entre execuções.
