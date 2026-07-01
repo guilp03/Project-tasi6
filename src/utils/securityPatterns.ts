@@ -27,6 +27,7 @@ const SENSITIVE_PATTERNS: readonly RegExp[] = [
   /kubernetes/i,
   /password/i,
   /secret/i,
+  /security/i,
   /ssl|tls/i,
   /terraform/i,
   /token/i,

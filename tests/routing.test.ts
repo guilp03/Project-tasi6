@@ -63,4 +63,10 @@ describe("ADR-005 routing (calculateRoutingDecision)", () => {
     const d = route([file("src/a.ts", 5, 2, "modified", diff200)]);
     expect(d.context.totalDiffSize).toBe(200);
   });
+
+  it("routes security-only files to Gemini (superset regression guard)", () => {
+    const d = route([file("src/security/policy.ts")]);
+    expect(d.provider).toBe("gemini");
+    expect(d.context.hasSecurityChanges).toBe(true);
+  });
 });

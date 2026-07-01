@@ -89,4 +89,12 @@ describe("matchesSecurityPattern", () => {
   it("casa path com gcp (nuvem)", () => {
     expect(matchesSecurityPattern("deploy/gcp/main.tf")).toBe(true);
   });
+
+  it("casa src/security/policy.ts (superset: 'security' é padrão sensível)", () => {
+    expect(matchesSecurityPattern("src/security/policy.ts")).toBe(true);
+  });
+
+  it("casa docs/SECURITY.md (superset: 'security' substring)", () => {
+    expect(matchesSecurityPattern("docs/SECURITY.md")).toBe(true);
+  });
 });
