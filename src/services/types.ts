@@ -78,6 +78,7 @@ export interface AnalysisRecord {
     requiresDocsUpdate: boolean;
     detectedChanges: string[]; // derivado dos arquivos do PR
     documentationGaps: string[]; // = AuditResult.gaps
+    untrackedGaps?: string[]; // gaps rejeitados pelo grounding, prefixados "[NÃO ANCORADO] "
     justification: string; // = AuditResult.justificativa
     recommendations: string[]; // derivado da criticidade
     parseFailure?: boolean; // Medida #3 — true quando LLM devolveu JSON não-confiável
