@@ -154,10 +154,14 @@ export class LLMIntegrationService {
       finalStatus = "Inconclusiva";
       finalCriticality = "Crítica";
       finalRequiresDocsUpdate = true;
-    } else if (!grounded && !securityFloorTriggered) {
+    } else if (!grounded && rejectedGaps.length > 0 && !securityFloorTriggered) {
       // #2 descartou todos os gaps e nenhum piso de segurança se aplica.
       // Fail-closed: status Inconclusiva, criticidade Alta (sem prova de
       // segurança). Gaps rejeitados ficam visíveis em untrackedGaps.
+      // Dispara SÓ quando a LLM produz gaps e nenhum ancorou (alucinação
+      // inventiva). Se a LLM explícita produziu 0 gaps (julga limpo), não
+      // há invenção a conter — segue o caminho feliz (status/criticidade
+      // da LLM), não Inconclusiva falso-positivo.
       finalGaps = [
         "Análise inconclusiva: gaps gerados pela LLM não puderam ser ancorados nos artefatos do PR — revisão humana recomendada.",
       ];

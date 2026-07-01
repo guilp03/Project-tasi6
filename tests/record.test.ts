@@ -409,4 +409,63 @@ describe("assembleRecord — contenção de alucinação (3 camadas)", () => {
       "[NÃO ANCORADO] endpoint /api/login não documentado",
     ]);
   });
+
+  it("PR limpo sem arquivo sensível de código: LLM retorna 0 gaps + requires_docs_update false → OK (não Inconclusiva)", () => {
+    // Reproduz sintoma do next-auth #13396: PR só-doc, LLM julga "fora de escopo"
+    // e produz ZERO gaps + requires_docs_update=false. Hoje o ramo
+    // !grounded && !securityFloorTriggered dispara (grounded=false porque
+    // groundedGaps.length===0), marcando Inconclusiva falso-positivo.
+    // Correto: quando a LLM explicitamente produziu 0 gaps, não há nada a
+    // ancorar nem a rejeitar — confiar no julgamento da LLM (OK/Média).
+    const docFile: FileMetadata = {
+      path: "docs/guides/refresh-token-rotation.mdx",
+      status: "modified",
+      additions: 3,
+      deletions: 1,
+      language: "Markdown",
+      isPublicAPI: false,
+      isTest: false,
+      isDocumentation: true,
+      isConfig: false,
+      changeSummary: "Fix TypeScript type in refresh token rotation example",
+      diff: "-const token = ...\n+const token: string = ...",
+    };
+    const record = callAssembleRecord(
+      [docFile],
+      routingStandard(),
+      {
+        requires_docs_update: false,
+        criticidade: "Média",
+        gaps: [],
+        justificativa: "PR corrige tipo em exemplo de docs — fora de escopo do D3",
+      }
+    );
+    expect(record.analysis.status).toBe("OK");
+    expect(record.analysis.criticality).toBe("Média");
+    expect(record.analysis.requiresDocsUpdate).toBe(false);
+    expect(record.analysis.documentationGaps).toEqual([]);
+    expect(record.analysis.untrackedGaps ?? []).toEqual([]);
+    expect(record.analysis.parseFailure).toBe(false);
+  });
+
+  it("PR limpo sem arquivo sensível de código: LLM retorna 0 gaps + requires_docs_update true → Atenção necessária (não Inconclusiva)", () => {
+    // Variante: LLM julga que algo precisa de doc update mas não produziu
+    // gap citável. Continua seguindo a LLM (Atenção necessária / sua
+    // criticidade), não vira Inconclusiva falso-positivo.
+    const record = callAssembleRecord(
+      [file("src/utils/format.ts")],
+      routingStandard(),
+      {
+        requires_docs_update: true,
+        criticidade: "Alta",
+        gaps: [],
+        justificativa: "Mudança de排版 pode afetar consumidores",
+      }
+    );
+    expect(record.analysis.status).toBe("Atenção necessária");
+    expect(record.analysis.criticality).toBe("Alta");
+    expect(record.analysis.requiresDocsUpdate).toBe(true);
+    expect(record.analysis.documentationGaps).toEqual([]);
+    expect(record.analysis.untrackedGaps ?? []).toEqual([]);
+  });
 });
