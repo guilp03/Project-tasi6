@@ -107,7 +107,13 @@ export class LLMIntegrationService {
    *                      marca parseFailure e sobrepõe tudo com estado bloqueante.
    *   #2 grounding     — descarta gaps que não citam arquivo real do PR.
    *                      Se nenhum sobreviver (e não houver floor) → Inconclusiva.
-   *   #1 floor         — PR sensível (auth/.env/CI-CD/infra) força Crítica.
+   *                      Gaps rejeitados são preservados em `untrackedGaps`
+   *                      sob selo [NÃO ANCORADO] (visíveis, não verificados).
+   *   #1 floor         — PR com arquivo NÃO-documental sensível (auth/.env/
+   *                      CI-CD/infra) força Crítica. Documentos (.md/.mdx/...)
+   *                      são gated via FileMetadata.isDocumentation — seguem
+   *                      para revisão cuidadosa (Gemini via routing) mas não
+   *                      inflacionam a criticidade final.
    */
   private assembleRecord(
     corpus: PRCorpus,
@@ -122,15 +128,12 @@ export class LLMIntegrationService {
     );
 
     // --- Medida #2: grounding dos gaps ----------------------------------
-    const { groundedGaps, grounded } = validateGapsGrounding(result, corpus);
+    const { groundedGaps, rejectedGaps, grounded } = validateGapsGrounding(result, corpus);
 
-    // --- Medida #1: floor de criticidade --------------------------------
-    const ctx = routing.context;
-    const securityFloorTriggered =
-      ctx.hasSecurityChanges ||
-      ctx.hasAuthChanges ||
-      ctx.hasEnvChanges ||
-      ctx.hasCICDChanges;
+    // --- Medida #1: floor de criticidade (gated por !isDocumentation) --
+    const securityFloorTriggered = corpus.files.some(
+      (f) => !f.isDocumentation && matchesSecurityPattern(f.path)
+    );
 
     // --- Consolidar finalGaps / status / criticality --------------------
     let finalGaps: string[];
@@ -138,27 +141,34 @@ export class LLMIntegrationService {
     let finalCriticality: AuditResult["criticidade"];
     let finalJustification = result.justificativa;
     let finalRequiresDocsUpdate = result.requires_docs_update;
+    let untrackedGaps: string[] = [];
+
+    const untrackedTagged = rejectedGaps.map((g) => `[NÃO ANCORADO] ${g}`);
 
     if (parseFailure) {
-      // #3 disparou — estado bloqueante, sobrepõe tudo
+      // #3 disparou — estado bloqueante, sobrepõe tudo. Não há gaps da LLM
+      // para expor (result.gaps contém só o gap canônico do fallback).
       finalGaps = result.gaps;
       finalStatus = "Inconclusiva";
       finalCriticality = "Crítica";
       finalRequiresDocsUpdate = true;
     } else if (!grounded && !securityFloorTriggered) {
-      // #2 descartou todos os gaps e nenhum piso de segurança se aplica
+      // #2 descartou todos os gaps e nenhum piso de segurança se aplica.
+      // Fail-closed: status Inconclusiva, criticidade Alta (sem prova de
+      // segurança). Gaps rejeitados ficam visíveis em untrackedGaps.
       finalGaps = [
         "Análise inconclusiva: gaps gerados pela LLM não puderam ser ancorados nos artefatos do PR — revisão humana recomendada.",
       ];
       finalStatus = "Inconclusiva";
-      finalCriticality = "Alta"; // conservador, não Crítica: sem prova de segurança
+      finalCriticality = "Alta";
       finalRequiresDocsUpdate = true;
+      untrackedGaps = untrackedTagged;
     } else if (securityFloorTriggered) {
-      // #1 floor — injeta gap determinístico e força Crítica
-      const SENSITIVE_FILE_RE =
-        /auth|\.env|\.github[/\\]workflows|infra|secret|credential|docker|terraform|k8s|kubernetes|token|password|ssl|tls|crypto/i;
+      // #1 floor — injeta gap determinístico e força Crítica.
+      // sensitiveFiles é filtrado por !isDocumentation (só código-fonte
+      // sensível aparece na mensagem, nunca docs).
       const sensitiveFiles = corpus.files
-        .filter((f) => SENSITIVE_FILE_RE.test(f.path))
+        .filter((f) => !f.isDocumentation && matchesSecurityPattern(f.path))
         .map((f) => f.path);
       const fileList =
         sensitiveFiles.length > 0
@@ -174,11 +184,14 @@ export class LLMIntegrationService {
       finalJustification =
         `Criticidade elevada por floor determinístico (RNF-003). ` +
         `Justificativa LLM: ${result.justificativa}`;
+      untrackedGaps = untrackedTagged;
     } else {
-      // Caminho feliz — somente #2 aplicado
+      // Caminho feliz — somente #2 aplicado. Rejeitados também ficam visíveis
+      // para o PMO avaliar manualmente (conteúdo útil mesmo ancorado).
       finalGaps = groundedGaps;
       finalStatus = result.requires_docs_update ? "Atenção necessária" : "OK";
       finalCriticality = result.criticidade;
+      untrackedGaps = untrackedTagged;
     }
 
     const effectiveResult: AuditResult = {
@@ -204,6 +217,7 @@ export class LLMIntegrationService {
           (f: FileMetadata) => `${f.path} (${f.status})`
         ),
         documentationGaps: finalGaps,
+        untrackedGaps,
         justification: finalJustification,
         recommendations: this.deriveRecommendations(effectiveResult),
         parseFailure,

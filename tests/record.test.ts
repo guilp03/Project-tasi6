@@ -251,6 +251,9 @@ describe("assembleRecord — contenção de alucinação (3 camadas)", () => {
       record.analysis.documentationGaps.some((g) => g.includes("revisão humana"))
     ).toBe(true);
     expect(record.analysis.parseFailure).toBe(false);
+    expect(record.analysis.untrackedGaps ?? []).toEqual([
+      "[NÃO ANCORADO] endpoint /api/login não documentado",
+    ]);
   });
 
   it("#3 fail-closed: parseFailure propaga para AnalysisRecord", () => {
@@ -273,5 +276,137 @@ describe("assembleRecord — contenção de alucinação (3 camadas)", () => {
     expect(record.analysis.recommendations).toContain(
       "Rejeitar auto-aprovação: resultados inconclusivos demandam revisão humana."
     );
+  });
+
+  it("#1 floor (refinado): PR só-doc sensível (.mdx) NÃO força Crítica — segue análise LLM", () => {
+    const docFile: FileMetadata = {
+      path: "docs/guides/refresh-token-rotation.mdx",
+      status: "modified",
+      additions: 3,
+      deletions: 1,
+      language: "Markdown",
+      isPublicAPI: false,
+      isTest: false,
+      isDocumentation: true,
+      isConfig: false,
+      changeSummary: "Fix TypeScript type in refresh token rotation example",
+      diff: "-const token = ...\n+const token: string = ...",
+    };
+    const record = callAssembleRecord(
+      [docFile],
+      routingSecurity(),
+      {
+        requires_docs_update: false,
+        criticidade: "Média",
+        gaps: ["refresh-token-rotation.mdx carece de review de exemplo"],
+        justificativa: "PR corrige tipo em exemplo de docs — fora de escopo do D3",
+      }
+    );
+    expect(record.analysis.status).toBe("OK");
+    expect(record.analysis.criticality).toBe("Média");
+    expect(record.analysis.requiresDocsUpdate).toBe(false);
+    expect(
+      record.analysis.documentationGaps.some((g) =>
+        g.startsWith("[DETERMINÍSTICO]")
+      )
+    ).toBe(false);
+    expect(
+      record.analysis.justification.includes("floor determinístico (RNF-003)")
+    ).toBe(false);
+    expect(record.analysis.untrackedGaps ?? []).toEqual([]);
+  });
+
+  it("#1 floor (refinado): PR misto (docs/auth.md + src/auth/middleware.ts) dispara floor pelo código", () => {
+    const docFile: FileMetadata = {
+      path: "docs/auth.md",
+      status: "modified",
+      additions: 5,
+      deletions: 1,
+      language: "Markdown",
+      isPublicAPI: false,
+      isTest: false,
+      isDocumentation: true,
+      isConfig: false,
+      changeSummary: "Atualiza doc de auth",
+      diff: "+descrição de token rotation",
+    };
+    const codeFile: FileMetadata = {
+      path: "src/auth/middleware.ts",
+      status: "modified",
+      additions: 10,
+      deletions: 2,
+      language: "TypeScript",
+      isPublicAPI: true,
+      isTest: false,
+      isDocumentation: false,
+      isConfig: false,
+      changeSummary: "Modifica middleware de auth",
+      diff: "+export function verifyToken() { ... }",
+    };
+    const record = callAssembleRecord(
+      [docFile, codeFile],
+      routingSecurity(),
+      {
+        requires_docs_update: false,
+        criticidade: "Média",
+        gaps: ["middleware.ts carece de docs"],
+        justificativa: "LLM disse ok",
+      }
+    );
+    expect(record.analysis.status).toBe("Atenção necessária");
+    expect(record.analysis.criticality).toBe("Crítica");
+    expect(record.analysis.requiresDocsUpdate).toBe(true);
+    const detGap = record.analysis.documentationGaps.find((g) =>
+      g.startsWith("[DETERMINÍSTICO]")
+    );
+    expect(detGap).toBeDefined();
+    expect(detGap!).toContain("src/auth/middleware.ts");
+    expect(detGap!).not.toContain("docs/auth.md");
+  });
+
+  it("#2 grounding (refinado): reproduz chalk #642 — gaps por paráfrase viram untrackedGaps visíveis", () => {
+    const record = callAssembleRecord(
+      [file("source/vendor/supports-color/browser.js")],
+      routingStandard(),
+      {
+        requires_docs_update: true,
+        criticidade: "Alta",
+        gaps: [
+          "a mudança do navigator pode afetar compatibilidade em diferentes ambientes de execução",
+        ],
+        justificativa:
+          "A mudança introduzida para resolver o problema do `navigator` não definido pode afetar a compatibilidade",
+      }
+    );
+    expect(record.analysis.status).toBe("Inconclusiva");
+    expect(record.analysis.criticality).toBe("Alta");
+    expect(record.analysis.requiresDocsUpdate).toBe(true);
+    expect(
+      record.analysis.documentationGaps.some((g) => g.includes("revisão humana"))
+    ).toBe(true);
+    expect(record.analysis.untrackedGaps ?? []).toEqual([
+      "[NÃO ANCORADO] a mudança do navigator pode afetar compatibilidade em diferentes ambientes de execução",
+    ]);
+  });
+
+  it("caminho feliz com gap rejeitado exposto: groundedGaps em documentationGaps, rejeitados em untrackedGaps", () => {
+    const record = callAssembleRecord(
+      [file("src/foo.ts")],
+      routingStandard(),
+      {
+        requires_docs_update: true,
+        criticidade: "Alta",
+        gaps: [
+          "foo.ts carece de docs",
+          "endpoint /api/login não documentado",
+        ],
+        justificativa: "ok",
+      }
+    );
+    expect(record.analysis.status).toBe("Atenção necessária");
+    expect(record.analysis.documentationGaps).toEqual(["foo.ts carece de docs"]);
+    expect(record.analysis.untrackedGaps ?? []).toEqual([
+      "[NÃO ANCORADO] endpoint /api/login não documentado",
+    ]);
   });
 });
