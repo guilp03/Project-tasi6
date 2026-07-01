@@ -91,11 +91,11 @@ O status permanece `Inconclusiva` quando **nenhum** gap foi ancorado (fail-close
 
 | Medida | Gatilho | Efeito no `AnalysisRecord` e no relatório |
 |---|---|---|
-| **#1 Floor de criticidade** | PR toca `auth`/`.env`/CI/CD/infra e LLM não marcou `Crítica` | `criticality = "Crítica"`, `requiresDocsUpdate = true`, gap extra com prefixo `[DETERMINÍSTICO]`, justificativa combinada LLM + floor |
-| **#2 Grounding dos gaps** | Nenhum gap da LLM cita arquivo real do PR | `status = "Inconclusiva"`, `criticality = "Alta"`, gap com texto fixo de revisão humana |
+| **#1 Floor de criticidade** | PR contém arquivo **não-documental** (`isDocumentation === false`) que casa `matchesSecurityPattern` (`auth`/`.env`/CI/CD/infra/`token`/`secret`/...) | `criticality = "Crítica"`, `requiresDocsUpdate = true`, gap extra `[DETERMINÍSTICO]` listando o(s) arquivo(s) sensível(is) de código, justificativa combinada `floor determinístico (RNF-003). Justificativa LLM: …`. PR só-doc sensível (ex.: `docs/guides/refresh-token-rotation.mdx`) **não** dispara — routing ainda envia a Gemini, mas a criticidade segue a LLM. |
+| **#2 Grounding dos gaps** | Nenhum gap da LLM cita arquivo real do PR (e floor não dispara) | `status = "Inconclusiva"`, `criticality = "Alta"`, gap com texto fixo de revisão humana; gaps rejeitados preservados em `untrackedGaps` e renderizados em `## Gaps não verificados` (§2.4) |
 | **#3 Fail-closed** | Resposta da LLM não é JSON válido ou não segue o schema | `status = "Inconclusiva"`, `criticality = "Crítica"`, `parseFailure = true`, gap com texto fixo de revisão humana, nota visual no rodapé |
 
-As três camadas rodam em ordem fixa dentro da ferramenta: **`#3` (fail-closed) → `#2` (grounding) → `#1` (floor)**. Se `#3` dispara, `#2` e `#1` não têm efeito adicional — a auditoria já é inconclusiva com `Crítica`. Se `#2` invalida todos os gaps, `#1` não força `Crítica` porque não há prova de segurança no PR. Só no caminho feliz, `#1` é aplicado sobre os gaps que sobreviveram a `#2`.
+As três camadas rodam em ordem fixa dentro da ferramenta: **`#3` (fail-closed) → `#2` (grounding) → `#1` (floor)**. O gatilho do floor é **independente** do resultado de #2: `securityFloorTriggered` é computado sobre `corpus.files` (filtro `!isDocumentation && matchesSecurityPattern`), não sobre os gaps que sobreviveram a #2. Assim: se `#3` dispara, `#2` e `#1` não têm efeito adicional — a auditoria já é inconclusiva com `Crítica`. Se `#2` rejeita todos os gaps **e** nenhum arquivo não-documental sensível está presente, o status é `Inconclusiva`/`Alta` (fail-closed) — e os gaps rejeitados ficam visíveis em `## Gaps não verificados` (ver §2.4). Se `#2` rejeita tudo **mas** há arquivo não-documental sensível, `#1` força `Crítica` mesmo sem gaps ancorados. No caminho feliz (ao menos um gap ancorado, floor não dispara), status e criticidade seguem a LLM; gaps rejeitados também ficam visíveis sob selo `[NÃO ANCORADO]`.
 
 ## 4. Por que não usamos mais chamadas LLM
 
@@ -118,5 +118,5 @@ As técnicas mais avançadas ficam registradas no spec como evolução pós-MVP.
 
 - `Requisitos.MD` → **RNF-003** (0% falso-negativo em segurança), **RNF-001** (latência ≤30s/PR), **RNF-007** (custo médio < R$ 0,10/PR).
 - `docs/RELATORIO_SEGURANCA_APPSEC.md` → **AS-06** (prompt injection / falta de validação determinística), **AS-07** (fallback "falha aberto").
-- `docs/Arquitetura.MD` → **ADR-005** (roteamento Groq/Gemini por sensibilidade —源头 do `routing.context` reusado pela Medida #1).
+- `docs/Arquitetura.MD` → **ADR-005** (roteamento Groq/Gemini por sensibilidade — origem do `routing.context` reusado pela Medida #1).
 - `docs/superpowers/specs/2026-06-30-contencao-alucinacao-design.md` → design técnico completo com contratos, fluxos de dados e estratégia de testes.
