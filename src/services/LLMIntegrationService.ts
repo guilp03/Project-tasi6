@@ -11,6 +11,7 @@ import {
 } from "./types.js";
 import { buildAuditPrompt } from "../utils/prompts.js";
 import { validateGapsGrounding } from "../utils/grounding.js";
+import { matchesSecurityPattern } from "../utils/securityPatterns.js";
 
 export class LLMIntegrationService {
   // Free-tier model IDs (ADR-005). Centralized so the record and the payloads agree.
@@ -345,35 +346,16 @@ export class LLMIntegrationService {
       },
     };
 
-    // Calculate total diff size
     const totalDiffSize = corpus.files.reduce(
       (sum, f) => sum + (f.diff?.length || 0),
       0
     );
     decision.context.totalDiffSize = totalDiffSize;
 
-    // Detect sensitive file patterns
-    const securityPatterns = [
-      /\.env/i,
-      /secret/i,
-      /password/i,
-      /api[_-]?key/i,
-      /token/i,
-      /credential/i,
-      /auth/i,
-      /security/i,
-      /\.github[/\\]workflows/i,
-      /dockerfile/i,
-      /docker-compose/i,
-      /kubernetes|k8s/i,
-      /terraform/i,
-      /cloudformation/i,
-      /infra/i,
-      /infrastructure/i,
-      /aws|gcp|azure/i,
-      /ssl|tls|certificate|crypto/i,
-    ];
-
+    // Detect sensitive file patterns (ADR-005 routing) — uses shared helper.
+    // Gate !isDocumentation NÃO se aplica aqui: routing continua em Gemini
+    // para docs sensíveis (revisão cuidadosa mantida). O gate fica no floor
+    // (assembleRecord), onde a criticidade é decidida.
     corpus.files.forEach((file) => {
       const filePath = file.path.toLowerCase();
 
@@ -385,14 +367,11 @@ export class LLMIntegrationService {
         decision.context.hasCICDChanges = true;
       }
 
-      securityPatterns.forEach((pattern) => {
-        if (pattern.test(filePath)) {
-          decision.context.hasSecurityChanges = true;
-        }
-      });
+      if (matchesSecurityPattern(filePath)) {
+        decision.context.hasSecurityChanges = true;
+      }
     });
 
-    // Routing logic
     if (decision.context.hasSecurityChanges) {
       decision.provider = "gemini";
       decision.reason =
