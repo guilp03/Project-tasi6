@@ -69,6 +69,24 @@ Além disso, o `AnalysisRecord` persistido em MongoDB grava `analysis.parseFailu
 
 **Por quê:** o comportamento anterior (registrado em AS-07 do relatório de segurança) fazia "falhar aberto" — devolvia `requires_docs_update: false`, criticidade `Média`, e a ferramenta seguia como se nada tivesse acontecido. Isso é o oposto do que um pipeline de CI/CD exige: quando não dá para confiar, **não confia**. "Falhar fechado" é o princípio correto para uma ferramenta que pode bloquear releases.
 
+### 2.4 #2 (refinada) — Gaps não verificados visíveis
+
+**O que faz:** quando algum gap gerado pela LLM não pôde ser ancorado em um arquivo real do PR (ou seja, não cita nem o path nem o basename de nenhum arquivo do corpus), ele não é simplesmente descartado. Aparece no relatório numa seção **Gaps não verificados**, com o prefixo `[NÃO ANCORADO]`.
+
+**Quando dispara:** sempre que há ao menos um gap rejeitado pelo grounding — no caminho feliz, no floor, ou no caso inconclusivo.
+
+**Efeito observável no relatório:**
+
+```
+## Gaps não verificados
+
+- [NÃO ANCORADO] a mudança do navigator pode afetar compatibilidade em diferentes ambientes de execução
+
+Gaps marcados como [NÃO ANCORADO] não puderam ser verificados contra os artefatos do PR. Avalie manualmente antes de decidir o merge.
+```
+
+O status permanece `Inconclusiva` quando **nenhum** gap foi ancorado (fail-closed preservado), mas o conteúdo analítico fica visível para o PMO avaliar manualmente. Esta melhoria é de **apresentação**, não relaxamento: o matcher de grounding continua operando por basename/path exato case-insensitive; o que mudou é que os gaps rejeitados são preservados na saída em vez de descartados silenciosamente. Eles aparecem persistidos no `AnalysisRecord.analysis.untrackedGaps` para rastreabilidade no MongoDB.
+
 ## 3. Como as três camadas aparecem na saída
 
 | Medida | Gatilho | Efeito no `AnalysisRecord` e no relatório |
@@ -92,9 +110,9 @@ As técnicas mais avançadas ficam registradas no spec como evolução pós-MVP.
 
 ## 5. Limitações assumidas
 
-- **Regex de `securityPatterns` é abrangente:** `/token/i` casa `TokenRefreshService` que pode não ser de fato sensível. Em caso de dúvida, a ferramenta opta pelo falso-positivo (eleva a `Crítica`), o que está alinhado ao RNF-003 ("priorizar falsos positivos em vez da omissão de riscos"). O custo é alertas extras, não riscos ignorados.
-- **Matcher de grounding é literal:** um gap válido que referencia um arquivo por paráfrase ("o middleware da autenticação") pode ser descartado. Para MVP aceita-se uma taxa de descarte controlada; a mensagem de `"Inconclusiva"` orienta o PMO a revisar manualmente, evitando silently dropping uma análise relevante.
-- **Status `"Inconclusiva"` é novo:** auditorias antigas persistidas em MongoDB não têm esse campo; a renderização retroativa ainda funciona porque o valor default ausente é equivalente a `"OK"` ou `"Atenção necessária"` nos registros antigos.
+- **Regex de `securityPatterns` é abrangente, mas o floor é gated por `isDocumentation`:** a regex continua casando arquivos de documentação que mencionam segurança (`docs/guides/refresh-token-rotation.mdx` contém "token"), mas o floor de criticidade (#1) agora a aplica **apenas sobre arquivos não-documentais** (`FileMetadata.isDocumentation === false`). Um PR que edita apenas `docs/guides/refresh-token-rotation.mdx` não força `Crítica` — o roteamento ainda o envia a Gemini para revisão cuidadosa, mas a criticidade segue a análise da LLM. Arquivos de **código-fonte** de segurança (`src/auth/middleware.ts`, `.env`, workflows de CI/CD) continuam disparando o floor `Crítica`, preservando o RNF-003. A distinção código-vs-documentação usa a flag `isDocumentation` já existente em `GitHubExtractorService.classifyFile`.
+- **Matcher de grounding é literal:** um gap válido que referencia um arquivo por paráfrase ("o middleware da autenticação") pode ser descartado de `documentationGaps`. Para MVP aceita-se uma taxa de descarte controlada; desde o refinamento de 2026-06-30, esses gaps rejeitados são preservados na nova seção **Gaps não verificados** sob selo `[NÃO ANCORADO]` (ver §2.4), em vez de descartados silenciosamente. A mensagem de `"Inconclusiva"` orienta o PMO a revisar manualmente, e o conteúdo da LLM fica acessível para informar essa revisão.
+- **Status `"Inconclusiva"` é novo:** auditorias antigas persistidas em MongoDB não têm esse campo; a renderização retroativa ainda funciona porque o valor default ausente é equivalente a `"OK"` ou `"Atenção necessária"` nos registros antigos. O novo campo `untrackedGaps` é opcional e default `[]`; registros antigos sem o campo são lidos como `undefined` e a nova seção do relatório é omitida.
 
 ## 6. Referências
 
