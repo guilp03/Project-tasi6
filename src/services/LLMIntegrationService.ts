@@ -131,9 +131,11 @@ export class LLMIntegrationService {
     const { groundedGaps, rejectedGaps, grounded } = validateGapsGrounding(result, corpus);
 
     // --- Medida #1: floor de criticidade (gated por !isDocumentation) --
-    const securityFloorTriggered = corpus.files.some(
-      (f) => !f.isDocumentation && matchesSecurityPattern(f.path)
-    );
+    // Predicado único reusado no Gatilho (.some) e na lista (.filter) do gap
+    // [DETERMINÍSTICO] — mantém as duas visitas consistentes (evita drift).
+    const isCodeSensitive = (f: FileMetadata) =>
+      !f.isDocumentation && matchesSecurityPattern(f.path);
+    const securityFloorTriggered = corpus.files.some(isCodeSensitive);
 
     // --- Consolidar finalGaps / status / criticality --------------------
     let finalGaps: string[];
@@ -168,8 +170,9 @@ export class LLMIntegrationService {
       // sensitiveFiles é filtrado por !isDocumentation (só código-fonte
       // sensível aparece na mensagem, nunca docs).
       const sensitiveFiles = corpus.files
-        .filter((f) => !f.isDocumentation && matchesSecurityPattern(f.path))
+        .filter(isCodeSensitive)
         .map((f) => f.path);
+      // defensive — securityFloorTriggered (.some) garante sensitiveFiles não-vazio neste ramo
       const fileList =
         sensitiveFiles.length > 0
           ? sensitiveFiles.join(", ")
