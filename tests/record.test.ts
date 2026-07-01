@@ -233,7 +233,11 @@ describe("assembleRecord — contenção de alucinação (3 camadas)", () => {
     expect(record.analysis.justification).toContain("LLM disse tudo ok");
   });
 
-  it("#2 grounding: gap não-ancorado + sem floor → Inconclusiva Alta", () => {
+  it("(sem ancoragem): gap que não cita arquivo do PR vai direto para documentationGaps, status segue LLM", () => {
+    // Camada #2 (grounding) foi removida — gaps da LLM são preservados como
+    // produzidos, sem selo [NÃO ANCORADO] e sem forçar Inconclusiva. O PMO
+    // lê a análise da LLM crua; o fail-closed Inconclusiva só cobra
+    // parseFailure (#3).
     const record = callAssembleRecord(
       [file("src/utils/foo.ts")],
       routingStandard(),
@@ -244,16 +248,13 @@ describe("assembleRecord — contenção de alucinação (3 camadas)", () => {
         justificativa: "x",
       }
     );
-    expect(record.analysis.status).toBe("Inconclusiva");
+    expect(record.analysis.status).toBe("Atenção necessária");
     expect(record.analysis.criticality).toBe("Alta");
     expect(record.analysis.requiresDocsUpdate).toBe(true);
-    expect(
-      record.analysis.documentationGaps.some((g) => g.includes("revisão humana"))
-    ).toBe(true);
-    expect(record.analysis.parseFailure).toBe(false);
-    expect(record.analysis.untrackedGaps ?? []).toEqual([
-      "[NÃO ANCORADO] endpoint /api/login não documentado",
+    expect(record.analysis.documentationGaps).toEqual([
+      "endpoint /api/login não documentado",
     ]);
+    expect(record.analysis.parseFailure).toBe(false);
   });
 
   it("#3 fail-closed: parseFailure propaga para AnalysisRecord", () => {
@@ -313,8 +314,7 @@ describe("assembleRecord — contenção de alucinação (3 camadas)", () => {
     expect(
       record.analysis.justification.includes("floor determinístico (RNF-003)")
     ).toBe(false);
-    expect(record.analysis.untrackedGaps ?? []).toEqual([]);
-  });
+    });
 
   it("#1 floor (refinado): PR misto (docs/auth.md + src/auth/middleware.ts) dispara floor pelo código", () => {
     const docFile: FileMetadata = {
@@ -364,7 +364,11 @@ describe("assembleRecord — contenção de alucinação (3 camadas)", () => {
     expect(detGap!).not.toContain("docs/auth.md");
   });
 
-  it("#2 grounding (refinado): reproduz chalk #642 — gaps por paráfrase viram untrackedGaps visíveis", () => {
+  it("(sem ancoragem): reproduz chalk #642 — gaps por paráfrase vão diretos para documentationGaps (sem selo, sem Inconclusiva)", () => {
+    // Camada #2 (grounding) removida: a LLM tem voz. Gap que não cita o
+    // basename do arquivo do PR é preservado como produzido no relatório,
+    // sem selo [NÃO ANCORADO] e sem forçar status Inconclusiva. Falha
+    // hoje (codigo atual ancora/descarta) → passa após remoção.
     const record = callAssembleRecord(
       [file("source/vendor/supports-color/browser.js")],
       routingStandard(),
@@ -378,45 +382,16 @@ describe("assembleRecord — contenção de alucinação (3 camadas)", () => {
           "A mudança introduzida para resolver o problema do `navigator` não definido pode afetar a compatibilidade",
       }
     );
-    expect(record.analysis.status).toBe("Inconclusiva");
+    expect(record.analysis.status).toBe("Atenção necessária");
     expect(record.analysis.criticality).toBe("Alta");
     expect(record.analysis.requiresDocsUpdate).toBe(true);
-    expect(
-      record.analysis.documentationGaps.some((g) => g.includes("revisão humana"))
-    ).toBe(true);
-    expect(record.analysis.untrackedGaps ?? []).toEqual([
-      "[NÃO ANCORADO] a mudança do navigator pode afetar compatibilidade em diferentes ambientes de execução",
+    expect(record.analysis.documentationGaps).toEqual([
+      "a mudança do navigator pode afetar compatibilidade em diferentes ambientes de execução",
     ]);
-  });
-
-  it("caminho feliz com gap rejeitado exposto: groundedGaps em documentationGaps, rejeitados em untrackedGaps", () => {
-    const record = callAssembleRecord(
-      [file("src/foo.ts")],
-      routingStandard(),
-      {
-        requires_docs_update: true,
-        criticidade: "Alta",
-        gaps: [
-          "foo.ts carece de docs",
-          "endpoint /api/login não documentado",
-        ],
-        justificativa: "ok",
-      }
-    );
-    expect(record.analysis.status).toBe("Atenção necessária");
-    expect(record.analysis.documentationGaps).toEqual(["foo.ts carece de docs"]);
-    expect(record.analysis.untrackedGaps ?? []).toEqual([
-      "[NÃO ANCORADO] endpoint /api/login não documentado",
-    ]);
+    expect(record.analysis.parseFailure).toBe(false);
   });
 
   it("PR limpo sem arquivo sensível de código: LLM retorna 0 gaps + requires_docs_update false → OK (não Inconclusiva)", () => {
-    // Reproduz sintoma do next-auth #13396: PR só-doc, LLM julga "fora de escopo"
-    // e produz ZERO gaps + requires_docs_update=false. Hoje o ramo
-    // !grounded && !securityFloorTriggered dispara (grounded=false porque
-    // groundedGaps.length===0), marcando Inconclusiva falso-positivo.
-    // Correto: quando a LLM explicitamente produziu 0 gaps, não há nada a
-    // ancorar nem a rejeitar — confiar no julgamento da LLM (OK/Média).
     const docFile: FileMetadata = {
       path: "docs/guides/refresh-token-rotation.mdx",
       status: "modified",
@@ -444,14 +419,10 @@ describe("assembleRecord — contenção de alucinação (3 camadas)", () => {
     expect(record.analysis.criticality).toBe("Média");
     expect(record.analysis.requiresDocsUpdate).toBe(false);
     expect(record.analysis.documentationGaps).toEqual([]);
-    expect(record.analysis.untrackedGaps ?? []).toEqual([]);
     expect(record.analysis.parseFailure).toBe(false);
   });
 
   it("PR limpo sem arquivo sensível de código: LLM retorna 0 gaps + requires_docs_update true → Atenção necessária (não Inconclusiva)", () => {
-    // Variante: LLM julga que algo precisa de doc update mas não produziu
-    // gap citável. Continua seguindo a LLM (Atenção necessária / sua
-    // criticidade), não vira Inconclusiva falso-positivo.
     const record = callAssembleRecord(
       [file("src/utils/format.ts")],
       routingStandard(),
@@ -459,13 +430,12 @@ describe("assembleRecord — contenção de alucinação (3 camadas)", () => {
         requires_docs_update: true,
         criticidade: "Alta",
         gaps: [],
-        justificativa: "Mudança de排版 pode afetar consumidores",
+        justificativa: "Mudança pode afetar consumidores",
       }
     );
     expect(record.analysis.status).toBe("Atenção necessária");
     expect(record.analysis.criticality).toBe("Alta");
     expect(record.analysis.requiresDocsUpdate).toBe(true);
     expect(record.analysis.documentationGaps).toEqual([]);
-    expect(record.analysis.untrackedGaps ?? []).toEqual([]);
   });
 });

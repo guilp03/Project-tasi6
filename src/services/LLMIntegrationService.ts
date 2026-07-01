@@ -10,7 +10,6 @@ import {
   DIFF_SIZE_THRESHOLD,
 } from "./types.js";
 import { buildAuditPrompt } from "../utils/prompts.js";
-import { validateGapsGrounding } from "../utils/grounding.js";
 import { matchesSecurityPattern } from "../utils/securityPatterns.js";
 
 export class LLMIntegrationService {
@@ -102,18 +101,20 @@ export class LLMIntegrationService {
   /**
    * Map the raw AuditResult + context into the §5.6-aligned AnalysisRecord.
    *
-   * Aplica três camadas determinísticas pós-LLM (spec contenção-alucinacao):
+   * Aplica duas camadas determinísticas pós-LLM (a #2 grounding foi removida
+   * — os gaps da LLM são preservados como produzidos, sem filtragem por
+   * ancoragem em arquivos do PR):
    *   #3 fail-closed   — se parseJSONSafely devolveu gap "Análise inconclusiva",
    *                      marca parseFailure e sobrepõe tudo com estado bloqueante.
-   *   #2 grounding     — descarta gaps que não citam arquivo real do PR.
-   *                      Se nenhum sobreviver (e não houver floor) → Inconclusiva.
-   *                      Gaps rejeitados são preservados em `untrackedGaps`
-   *                      sob selo [NÃO ANCORADO] (visíveis, não verificados).
    *   #1 floor         — PR com arquivo NÃO-documental sensível (auth/.env/
    *                      CI-CD/infra) força Crítica. Documentos (.md/.mdx/...)
    *                      são gated via FileMetadata.isDocumentation — seguem
    *                      para revisão cuidadosa (Gemini via routing) mas não
    *                      inflacionam a criticidade final.
+   *
+   * Sem #2, o status "Inconclusiva" passa a disparar SOMENTE por #3 (parse
+   * failure). Gaps da LLM sem citação de arquivo real não são mais
+   * descartados/selos — o PMO lê a análise crua.
    */
   private assembleRecord(
     corpus: PRCorpus,
@@ -126,9 +127,6 @@ export class LLMIntegrationService {
     const parseFailure = result.gaps.some(
       (g) => typeof g === "string" && g.startsWith("Análise inconclusiva — resposta da LLM")
     );
-
-    // --- Medida #2: grounding dos gaps ----------------------------------
-    const { groundedGaps, rejectedGaps, grounded } = validateGapsGrounding(result, corpus);
 
     // --- Medida #1: floor de criticidade (gated por !isDocumentation) --
     // Predicado único reusado no Gatilho (.some) e na lista (.filter) do gap
@@ -143,36 +141,19 @@ export class LLMIntegrationService {
     let finalCriticality: AuditResult["criticidade"];
     let finalJustification = result.justificativa;
     let finalRequiresDocsUpdate = result.requires_docs_update;
-    let untrackedGaps: string[] = [];
-
-    const untrackedTagged = rejectedGaps.map((g) => `[NÃO ANCORADO] ${g}`);
 
     if (parseFailure) {
-      // #3 disparou — estado bloqueante, sobrepõe tudo. Não há gaps da LLM
-      // para expor (result.gaps contém só o gap canônico do fallback).
+      // #3 disparou — estado bloqueante, sobrepõe tudo. result.gaps contém
+      // só o gap canônico do fallback de parsing.
       finalGaps = result.gaps;
       finalStatus = "Inconclusiva";
       finalCriticality = "Crítica";
       finalRequiresDocsUpdate = true;
-    } else if (!grounded && rejectedGaps.length > 0 && !securityFloorTriggered) {
-      // #2 descartou todos os gaps e nenhum piso de segurança se aplica.
-      // Fail-closed: status Inconclusiva, criticidade Alta (sem prova de
-      // segurança). Gaps rejeitados ficam visíveis em untrackedGaps.
-      // Dispara SÓ quando a LLM produz gaps e nenhum ancorou (alucinação
-      // inventiva). Se a LLM explícita produziu 0 gaps (julga limpo), não
-      // há invenção a conter — segue o caminho feliz (status/criticidade
-      // da LLM), não Inconclusiva falso-positivo.
-      finalGaps = [
-        "Análise inconclusiva: gaps gerados pela LLM não puderam ser ancorados nos artefatos do PR — revisão humana recomendada.",
-      ];
-      finalStatus = "Inconclusiva";
-      finalCriticality = "Alta";
-      finalRequiresDocsUpdate = true;
-      untrackedGaps = untrackedTagged;
     } else if (securityFloorTriggered) {
       // #1 floor — injeta gap determinístico e força Crítica.
       // sensitiveFiles é filtrado por !isDocumentation (só código-fonte
-      // sensível aparece na mensagem, nunca docs).
+      // sensível aparece na mensagem, nunca docs). Os gaps da LLM são
+      // preservados integralmente (sem filtragem por ancoragem).
       const sensitiveFiles = corpus.files
         .filter(isCodeSensitive)
         .map((f) => f.path);
@@ -184,21 +165,19 @@ export class LLMIntegrationService {
       const detGap =
         `[DETERMINÍSTICO] Arquivo sensível detectado (${fileList}) — ` +
         `documentação obrigatória por regra determinística (RNF-003).`;
-      finalGaps = [...groundedGaps, detGap];
+      finalGaps = [...result.gaps, detGap];
       finalStatus = "Atenção necessária";
       finalCriticality = "Crítica";
       finalRequiresDocsUpdate = true;
       finalJustification =
         `Criticidade elevada por floor determinístico (RNF-003). ` +
         `Justificativa LLM: ${result.justificativa}`;
-      untrackedGaps = untrackedTagged;
     } else {
-      // Caminho feliz — somente #2 aplicado. Rejeitados também ficam visíveis
-      // para o PMO avaliar manualmente (conteúdo útil mesmo ancorado).
-      finalGaps = groundedGaps;
+      // Caminho feliz — sem #2 (ancoragem removida): os gaps da LLM são
+      // preservados integralmente. Status/criticidade seguem a LLM.
+      finalGaps = result.gaps;
       finalStatus = result.requires_docs_update ? "Atenção necessária" : "OK";
       finalCriticality = result.criticidade;
-      untrackedGaps = untrackedTagged;
     }
 
     const effectiveResult: AuditResult = {
@@ -224,7 +203,6 @@ export class LLMIntegrationService {
           (f: FileMetadata) => `${f.path} (${f.status})`
         ),
         documentationGaps: finalGaps,
-        untrackedGaps,
         justification: finalJustification,
         recommendations: this.deriveRecommendations(effectiveResult),
         parseFailure,

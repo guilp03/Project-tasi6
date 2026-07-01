@@ -165,46 +165,11 @@ describe("ReportGenerator", () => {
     expect(md).not.toContain("não utilizar como aprovação automática");
   });
 
-  it("renderiza seção '## Gaps não verificados' quando untrackedGaps não-vazio", () => {
-    const record: AnalysisRecord = {
-      ...mockRecord,
-      analysis: {
-        ...mockRecord.analysis,
-        untrackedGaps: [
-          "[NÃO ANCORADO] a mudança do navigator pode afetar compatibilidade",
-          "[NÃO ANCORADO] endpoint /api/login não documentado",
-        ],
-      },
-    };
-
-    const generator = new ReportGenerator();
-    const md = generator.generate(record);
-
-    expect(md).toContain("## Gaps não verificados");
-    expect(md).toContain("- [NÃO ANCORADO] a mudança do navigator pode afetar compatibilidade");
-    expect(md).toContain("- [NÃO ANCORADO] endpoint /api/login não documentado");
-    expect(md).toContain(
-      "Gaps marcados como [NÃO ANCORADO] não puderam ser verificados contra os artefatos do PR. Avalie manualmente antes de decidir o merge."
-    );
-  });
-
-  it("omite seção '## Gaps não verificados' quando untrackedGaps é vazio", () => {
-    const record: AnalysisRecord = {
-      ...mockRecord,
-      analysis: {
-        ...mockRecord.analysis,
-        untrackedGaps: [],
-      },
-    };
-
-    const generator = new ReportGenerator();
-    const md = generator.generate(record);
-
-    expect(md).not.toContain("## Gaps não verificados");
-    expect(md).not.toContain("[NÃO ANCORADO]");
-  });
-
-  it("omite seção '## Gaps não verificados' quando untrackedGaps é undefined", () => {
+  it("não renderiza seção '## Gaps não verificados' (camada #2 grounding removida)", () => {
+    // A ancoragem (#2) foi removida da ferramenta: a seção
+    // '## Gaps não verificados' nunca aparece,pois não há mais gaps
+    // rejeitados a exibir. Pino de regressão: garante que vestígios da
+    // antiga seção não permaneçam na saída.
     const generator = new ReportGenerator();
     const md = generator.generate(mockRecord);
 

@@ -34,7 +34,6 @@ const AnalysisSchema = new Schema<AnalysisDocument>(
       requiresDocsUpdate: { type: Boolean, required: true },
       detectedChanges: { type: [String], required: true },
       documentationGaps: { type: [String], required: true },
-      untrackedGaps: { type: [String], default: [] },
       justification: { type: String, required: true },
       recommendations: { type: [String], required: true },
       parseFailure: { type: Boolean, default: false },

@@ -30,22 +30,6 @@ export class ReportGenerator {
       });
     }
 
-    // Medida #2 (refinada) — gaps rejeitados pelo grounding, exibidos sob selo
-    // [NÃO ANCORADO] em seção dedicada. Omite quando ausente ou vazio.
-    const untracked = analysis.untrackedGaps ?? [];
-    if (untracked.length > 0) {
-      lines.push("");
-      lines.push("## Gaps não verificados");
-      lines.push("");
-      for (const gap of untracked) {
-        lines.push(`- ${gap}`);
-      }
-      lines.push("");
-      lines.push(
-        "Gaps marcados como [NÃO ANCORADO] não puderam ser verificados contra os artefatos do PR. Avalie manualmente antes de decidir o merge."
-      );
-    }
-
     lines.push(
       "",
       "## Recomendação",
