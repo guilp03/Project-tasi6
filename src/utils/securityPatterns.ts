@@ -1,13 +1,13 @@
 /**
  * Fonte única de verdade para padrões de arquivo sensível (RNF-003).
- * Consumido por `calculateRoutingDecision` (routing ADR-005) e por
- * `assembleRecord` (Medida #1 floor).
+ * Será consumido por `calculateRoutingDecision` (routing ADR-005, Task 3) e por
+ * `assembleRecord` (Medida #1 floor, Task 4).
  *
  * União das listas hoje divergentes em LLMIntegrationService.ts
  * (securityPatterns vs. SENSITIVE_FILE_RE). O gate `!isDocumentation`
  * é aplicado pelo chamador (assembleRecord), não por este helper.
  *
- * Ordem alfabética para legibilidade.
+ * Agrupado por tema, aproximadamente alfabético para legibilidade.
  */
 const SENSITIVE_PATTERNS: readonly RegExp[] = [
   /api[_-]?key/i,
@@ -30,7 +30,7 @@ const SENSITIVE_PATTERNS: readonly RegExp[] = [
   /ssl|tls/i,
   /terraform/i,
   /token/i,
-] as const;
+];
 
 /**
  * Testa se o caminho do arquivo casa qualquer padrão sensível.
