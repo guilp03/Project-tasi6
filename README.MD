@@ -2,7 +2,8 @@
 
 CLI em Node.js + TypeScript que audita automaticamente Pull Requests para garantir que mudanças de código estejam refletidas na documentação, usando roteamento inteligente entre dois provedores de LLM gratuitos (Groq no caminho rápido, Google Gemini no fallback de alto contexto e segurança).
 
-> **Status:** v0.2.0 — Fase 4 (Interlídio) ✅
+Link da apresentação: https://canva.link/h0p32knbtgqw561
+Link da DEMO: https://www.youtube.com/watch?v=c6ljcjtRlBw
 
 ## Problema
 
